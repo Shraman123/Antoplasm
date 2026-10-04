@@ -79,12 +79,12 @@ export const AIR: AirTier[] = [
 ];
 
 export const HARPOON: HarpoonTier[] = [
-  { cost: 0, label: 'Sling Spear', damage: 1, reload: 1.15, speed: 55 },
-  { cost: 55, label: 'Band Gun', damage: 2, reload: 1.0, speed: 65 },
-  { cost: 160, label: 'Pneumatic Gun', damage: 3, reload: 0.85, speed: 78 },
-  { cost: 380, label: 'Barbed Railgun', damage: 5, reload: 0.7, speed: 90 },
-  { cost: 820, label: 'Powerhead', damage: 8, reload: 0.55, speed: 105 },
-  { cost: 1650, label: 'Bone Splitter', damage: 12, reload: 0.42, speed: 125 },
+  { cost: 0, label: 'Sling Spear', damage: 1, reload: 0.6, speed: 55 },
+  { cost: 55, label: 'Band Gun', damage: 2, reload: 0.5, speed: 65 },
+  { cost: 160, label: 'Pneumatic Gun', damage: 3, reload: 0.42, speed: 78 },
+  { cost: 380, label: 'Barbed Railgun', damage: 5, reload: 0.34, speed: 90 },
+  { cost: 820, label: 'Powerhead', damage: 8, reload: 0.27, speed: 105 },
+  { cost: 1650, label: 'Bone Splitter', damage: 12, reload: 0.2, speed: 125 },
 ];
 
 export const ARMOR: ArmorTier[] = [

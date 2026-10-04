@@ -155,7 +155,8 @@ function toast(html: string, infected = false) {
 
 // ---------- Harpoon ----------
 function fire() {
-  if (mode !== 'play' || spearState.active || reloadT > 0) return;
+  if (mode !== 'play' || reloadT > 0) return;
+  if (spearState.active) endSpear(); // a fresh shot cuts the line on the last one
   const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
   spear.position.copy(camera.position).addScaledVector(dir, 0.6).add(new THREE.Vector3(0, -0.12, 0));
   spear.lookAt(spear.position.clone().add(dir));
@@ -516,7 +517,7 @@ function updateHud(dt: number) {
   ui.air.style.width = `${air * 100}%`;
   ui.air.classList.toggle('low', air < 0.25);
   ui.hp.style.width = `${Math.max(0, hp)}%`;
-  ui.reload.style.width = `${spearState.active ? 0 : (1 - Math.max(0, reloadT) / tierH().reload) * 100}%`;
+  ui.reload.style.width = `${(1 - Math.max(0, reloadT) / tierH().reload) * 100}%`;
   ui.money.textContent = `$${save.money}`;
   ui.cargo.textContent = `Catch: ${cargo.length} fish · $${cargo.reduce((s, f) => s + f.price, 0)}`;
   const hint = nearBoat() ? "Press E — Teodor's boat (sell & upgrade)" : air < 0.25 && depth > 2 ? 'Air low — surface!' : '';
@@ -548,7 +549,7 @@ function frame() {
     updatePlayer(dt);
     reloadT -= dt;
     updateSpear(dt);
-    gun.setLoaded(!spearState.active && reloadT <= 0);
+    gun.setLoaded(reloadT <= 0);
   }
   if (mode === 'play' || mode === 'title' || mode === 'paused' || mode === 'shop' || mode === 'dead') {
     camera.quaternion.setFromEuler(new THREE.Euler(pitch, yaw, 0, 'YXZ'));
