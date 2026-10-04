@@ -4,6 +4,7 @@ import { AIR, ARMOR, BOAT_POS, DEPTH_LOGS, ENDING_DEPTH, HARPOON, rollIndividual
 import { Cutscene } from './cutscene';
 import { Fish, FishManager, fleshMat } from './fish';
 import { BubbleTrail, buildSpear, HarpoonGun } from './harpoon';
+import { Vents } from './vents';
 import { floorY, World, zoneName } from './world';
 
 // ---------- DOM ----------
@@ -60,6 +61,8 @@ const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(72, innerWidth / innerHeight, 0.05, 1200);
 scene.add(camera);
 const world = new World(scene, camera);
+const vents = new Vents(world.lakeGroup, world.growthMat);
+let ventAir = 0;
 const audio = new Audio();
 addEventListener('resize', () => {
   renderer.setSize(innerWidth, innerHeight);
@@ -475,6 +478,13 @@ function updatePlayer(dt: number) {
     hp = Math.min(100, hp + dt * 6);
   } else {
     air -= (dt * (1 + depth / 350) * (sprint ? 1.5 : 1)) / airMax();
+    if (ventAir > 0) {
+      air = Math.min(1, air + ventAir / airMax());
+      if (!save.logs.includes(9999)) {
+        save.logs.push(9999);
+        showLog("The vent's bubbles are breathable. Warm. They taste of iron, and something sweeter.");
+      }
+    }
     if (air <= 0) {
       air = 0;
       hp -= 12 * dt;
@@ -520,7 +530,9 @@ function updateHud(dt: number) {
   ui.reload.style.width = `${(1 - Math.max(0, reloadT) / tierH().reload) * 100}%`;
   ui.money.textContent = `$${save.money}`;
   ui.cargo.textContent = `Catch: ${cargo.length} fish · $${cargo.reduce((s, f) => s + f.price, 0)}`;
-  const hint = nearBoat() ? "Press E — Teodor's boat (sell & upgrade)" : air < 0.25 && depth > 2 ? 'Air low — surface!' : '';
+  const vent = vents.active;
+  const ventHint = vent ? (vents.reserveOf(vent) > 0.02 ? `Breathing vent gas — reserve ${Math.round(vents.reserveOf(vent) * 100)}%` : 'Vent spent — it needs time to recover') : '';
+  const hint = nearBoat() ? "Press E — Teodor's boat (sell & upgrade)" : ventHint ? ventHint : air < 0.25 && depth > 2 ? 'Air low — surface!' : '';
   ui.hint.textContent = hint;
   ui.hint.classList.toggle('show', !!hint);
   ui.vignette.style.setProperty('--v', String(0.25 + Math.min(1, depth / 550) * 0.7 + (air < 0.25 ? 0.2 : 0)));
@@ -544,6 +556,7 @@ function frame() {
   const dt = Math.min(0.05, clock.getDelta());
   time += dt;
   syncHarpoonLook();
+  ventAir = mode === 'cutscene' || mode === 'ending' ? 0 : vents.update(dt, time, mode === 'play' ? camera.position : new THREE.Vector3(0, 1e4, 0));
   if (mode === 'play') {
     save.playTime += dt;
     updatePlayer(dt);
@@ -618,6 +631,9 @@ requestAnimationFrame(frame);
     return f;
   },
   clearFish() { fishMgr.clear(); },
+  setAir(a: number) { air = a; },
+  place(x: number, y: number, z: number, p = 0, yw = 0) { camera.position.set(x, y, z); pitch = p; yaw = yw; },
+  vents,
   gun,
   freeze(on: boolean) { fishMgr.enabled = !on; },
   give(id: string) { const sp = SPECIES.find((s) => s.id === id)!; cargo.push(sp); },
