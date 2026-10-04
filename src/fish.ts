@@ -1,0 +1,320 @@
+import * as THREE from 'three';
+import { SPECIES, Species } from './config';
+import { floorY, rng } from './world';
+
+// Shared materials so dozens of fish don't each allocate their own.
+export const boneMat = new THREE.MeshStandardMaterial({ color: 0xe0d6bf, roughness: 0.6 });
+export const fleshMat = new THREE.MeshStandardMaterial({
+  color: 0x8c1020,
+  emissive: 0xff1a30,
+  emissiveIntensity: 0.5,
+  roughness: 0.3,
+  flatShading: true,
+});
+const eyeMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.2 });
+const eyeWhiteMat = new THREE.MeshStandardMaterial({ color: 0xf2f2e8, roughness: 0.4 });
+const deadEyeMat = new THREE.MeshStandardMaterial({ color: 0xd8c8c0, emissive: 0xff3040, emissiveIntensity: 0.6 });
+const lureMat = new THREE.MeshStandardMaterial({ color: 0xff8070, emissive: 0xff2a3a, emissiveIntensity: 3 });
+const stripeMat = new THREE.MeshStandardMaterial({ color: 0x3a3a1a });
+const hitMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+
+const sphere = new THREE.SphereGeometry(1, 10, 8);
+const lowSphere = new THREE.IcosahedronGeometry(1, 0);
+const cyl = new THREE.CylinderGeometry(1, 1, 1, 5);
+const cone = new THREE.ConeGeometry(1, 1, 4);
+const ribArc = new THREE.TorusGeometry(1, 0.07, 4, 10, Math.PI * 1.35);
+
+const bodyMats = new Map<string, THREE.MeshStandardMaterial>();
+function bodyMat(sp: Species, belly = false) {
+  const key = sp.id + (belly ? 'b' : '');
+  let m = bodyMats.get(key);
+  if (!m) {
+    const c = new THREE.Color(belly ? sp.belly : sp.color);
+    // Infection greys and bruises the skin.
+    c.lerp(new THREE.Color(0x3a2a2a), sp.infection * 0.5);
+    m = new THREE.MeshStandardMaterial({ color: c, roughness: 0.55, metalness: 0.15, flatShading: true });
+    bodyMats.set(key, m);
+  }
+  return m;
+}
+
+interface Built {
+  root: THREE.Group;
+  segs: THREE.Group[];
+  jaw?: THREE.Object3D;
+  meshes: THREE.Mesh[];
+}
+
+/** Procedural fish: a spine of segments; antoplasm replaces eaten segments with bare ribs and red mass. */
+export function buildFish(sp: Species, seed: number): Built {
+  const r = rng(seed);
+  const root = new THREE.Group();
+  const meshes: THREE.Mesh[] = [];
+  const N = sp.shape === 'eel' ? 12 : 7;
+  const L = sp.size;
+  const segLen = L / N;
+  const segs: THREE.Group[] = [];
+  const add = (parent: THREE.Object3D, geo: THREE.BufferGeometry, mat: THREE.Material, p: number[], s: number[], rot?: number[]) => {
+    const m = new THREE.Mesh(geo, mat);
+    m.position.set(p[0], p[1], p[2]);
+    m.scale.set(s[0], s[1], s[2]);
+    if (rot) m.rotation.set(rot[0], rot[1], rot[2]);
+    parent.add(m);
+    meshes.push(m);
+    return m;
+  };
+
+  const heightK = sp.shape === 'round' ? 0.42 : sp.shape === 'flat' ? 0.16 : sp.shape === 'eel' ? 0.07 : sp.shape === 'angler' ? 0.3 : 0.18;
+  const widthK = sp.shape === 'flat' ? 0.24 : sp.shape === 'eel' ? 0.07 : sp.shape === 'angler' ? 0.28 : 0.12;
+
+  for (let i = 0; i < N; i++) {
+    const t = i / (N - 1); // 0 = head, 1 = tail
+    const seg = new THREE.Group();
+    seg.position.z = L / 2 - t * L;
+    root.add(seg);
+    segs.push(seg);
+    let prof = sp.shape === 'eel' ? 1 - t * 0.6 : Math.pow(Math.sin(Math.PI * (0.18 + t * 0.78)), 0.7);
+    if (sp.shape === 'angler') prof = i < 2 ? 1.25 : Math.pow(Math.sin(Math.PI * (0.18 + t * 0.78)), 0.7) * 0.8;
+    const h = L * heightK * prof;
+    const w = L * widthK * prof;
+    const head = i === 0;
+    const tail = i === N - 1;
+    const eaten = !head && !tail && r() < sp.infection * 0.95;
+
+    if (eaten) {
+      // Flesh gone: vertebra, ribs, and antoplasm threads.
+      add(seg, cyl, boneMat, [0, 0, 0], [w * 0.18 + 0.02, segLen * 1.05, w * 0.18 + 0.02], [Math.PI / 2, 0, 0]);
+      // Two rib hoops per segment, open at the belly where the flesh is gone.
+      for (const dz of [-0.25, 0.25]) {
+        add(seg, ribArc, boneMat, [0, 0, dz * segLen], [w * 0.95, h * 0.7, Math.max(w, h) * 0.6], [0, 0, -Math.PI / 2 - Math.PI * 0.675 + Math.PI]);
+      }
+      if (r() < 0.8) add(seg, lowSphere, fleshMat, [(r() - 0.5) * w * 0.5, (r() - 0.5) * h * 0.3, 0], [w * 0.45, h * 0.35, segLen * 0.45]);
+      if (r() < 0.6) add(seg, cyl, fleshMat, [0, -h * 0.35, 0], [0.008 + L * 0.003, h * 0.7, 0.008 + L * 0.003], [(r() - 0.5) * 0.6, 0, (r() - 0.5) * 0.6]);
+    } else {
+      add(seg, sphere, bodyMat(sp), [0, h * 0.08, 0], [w, h * 0.8, segLen * 1.1]);
+      add(seg, sphere, bodyMat(sp, true), [0, -h * 0.25, 0], [w * 0.9, h * 0.55, segLen * 1.05]);
+      const lesions = Math.floor(sp.infection * 4 * r() + (sp.infection > 0.04 && r() < sp.infection * 3 ? 1 : 0));
+      for (let k = 0; k < lesions; k++) {
+        const a = r() * Math.PI * 2;
+        const ls = (0.15 + r() * 0.35) * Math.max(w, h * 0.5);
+        add(seg, lowSphere, fleshMat, [Math.cos(a) * w * 0.85, Math.sin(a) * h * 0.6, (r() - 0.5) * segLen * 0.5], [ls, ls, ls]);
+      }
+      // Stripes on perch.
+      if (sp.id === 'perch' && i > 0 && i < N - 1) {
+        add(seg, sphere, stripeMat, [0, h * 0.15, 0], [w * 1.03, h * 0.7, segLen * 0.18]);
+      }
+    }
+
+    if (head) {
+      const eyeR = Math.max(0.025, L * (sp.shape === 'angler' ? 0.035 : 0.045));
+      for (const side of [-1, 1]) {
+        const infectedEye = sp.infection > 0.4;
+        add(seg, sphere, infectedEye ? deadEyeMat : eyeWhiteMat, [side * w * 0.8, h * 0.18, segLen * 0.15], [eyeR, eyeR, eyeR]);
+        if (!infectedEye) add(seg, sphere, eyeMat, [side * (w * 0.8 + eyeR * 0.5), h * 0.18, segLen * 0.2], [eyeR * 0.6, eyeR * 0.6, eyeR * 0.6]);
+      }
+      if (sp.shape === 'angler' || sp.infection > 0.5) {
+        // Gaping jaw with teeth.
+        const jaw = new THREE.Group();
+        jaw.position.set(0, -h * 0.25, segLen * 0.2);
+        seg.add(jaw);
+        add(jaw, sphere, bodyMat(sp, true), [0, 0, segLen * 0.35], [w * 0.9, h * 0.15, segLen * 0.55]);
+        for (let k = 0; k < 6; k++) {
+          const x = (k / 5 - 0.5) * w * 1.4;
+          add(jaw, cone, boneMat, [x, h * 0.18, segLen * 0.7], [0.015 + L * 0.008, h * 0.35, 0.015 + L * 0.008]);
+        }
+        jawOf.set(root, jaw);
+      }
+      if (sp.shape === 'angler') {
+        add(seg, cyl, bodyMat(sp), [0, h * 1.1, segLen * 0.4], [0.02, h * 1.3, 0.02], [0.6, 0, 0]);
+        add(seg, sphere, lureMat, [0, h * 1.6, segLen * 1.2], [L * 0.05, L * 0.05, L * 0.05]);
+        const glow = new THREE.PointLight(0xff3040, 3, 9, 1.5);
+        glow.position.set(0, h * 1.6, segLen * 1.2);
+        seg.add(glow);
+      }
+      if (sp.shape === 'flat') {
+        for (const side of [-1, 1]) add(seg, cyl, bodyMat(sp, true), [side * w * 0.7, -h * 0.2, segLen * 0.7], [0.01, L * 0.25, 0.01], [Math.PI / 2.5, side * 0.6, 0]);
+      }
+    }
+
+    if (tail) {
+      const tailMat = sp.infection > 0.75 ? boneMat : bodyMat(sp);
+      add(seg, cone, tailMat, [0, 0, -segLen * 0.9], [0.02, segLen * 1.6, Math.max(h, L * 0.12) * 1.6], [Math.PI / 2, 0, 0]);
+    }
+    // Dorsal fin on the middle segments.
+    if (sp.shape !== 'eel' && i > 1 && i < N - 2 && !eaten) {
+      add(seg, cone, sp.infection > 0.6 ? boneMat : bodyMat(sp), [0, h * 0.75, 0], [0.01, h * 0.6, segLen * 0.8]);
+    }
+  }
+  return { root, segs, jaw: jawOf.get(root), meshes };
+}
+const jawOf = new WeakMap<THREE.Object3D, THREE.Object3D>();
+
+export class Fish {
+  sp: Species;
+  root: THREE.Group;
+  segs: THREE.Group[];
+  jaw?: THREE.Object3D;
+  meshes: THREE.Mesh[];
+  origMats: THREE.Material[];
+  hp: number;
+  vel = new THREE.Vector3();
+  target = new THREE.Vector3();
+  phase = Math.random() * 10;
+  biteCd = 0;
+  hitFlash = 0;
+  retarget = 0;
+  alive = true;
+  radius: number;
+
+  constructor(sp: Species, pos: THREE.Vector3, seed: number) {
+    this.sp = sp;
+    const b = buildFish(sp, seed);
+    this.root = b.root;
+    this.segs = b.segs;
+    this.jaw = b.jaw;
+    this.meshes = b.meshes;
+    this.origMats = b.meshes.map((m) => m.material as THREE.Material);
+    this.root.position.copy(pos);
+    this.hp = sp.hp;
+    this.radius = Math.max(0.45, sp.size * 0.45);
+    this.target.copy(pos);
+  }
+
+  flash() {
+    this.hitFlash = 0.12;
+    for (const m of this.meshes) m.material = hitMat;
+  }
+
+  dispose() {
+    // Geometries/materials are shared; only per-fish stripe materials leak, which is negligible.
+    this.root.removeFromParent();
+  }
+}
+
+export interface FishEvents {
+  bite(fish: Fish): void;
+}
+
+/** Spawns species appropriate to the player's depth and runs their behaviour. */
+export class FishManager {
+  fish: Fish[] = [];
+  group = new THREE.Group();
+  private seed = 1;
+  enabled = true;
+
+  constructor(scene: THREE.Scene, private events: FishEvents) {
+    scene.add(this.group);
+  }
+
+  speciesAt(depth: number) {
+    return SPECIES.filter((s) => depth >= s.minDepth && depth <= s.maxDepth);
+  }
+
+  private spawnNear(player: THREE.Vector3) {
+    for (let tries = 0; tries < 8; tries++) {
+      const a = Math.random() * Math.PI * 2;
+      const dist = 14 + Math.random() * 34;
+      const x = player.x + Math.cos(a) * dist;
+      const z = player.z + Math.sin(a) * dist;
+      if (Math.hypot(x, z) > 345) continue;
+      const floor = floorY(x, z);
+      const y = Math.min(-1.5, Math.max(floor + 1.5, player.y + (Math.random() - 0.5) * 50));
+      if (y <= floor + 1) continue;
+      const opts = this.speciesAt(-y);
+      if (!opts.length) continue;
+      // Rarer (deeper-ranged) species within a band are less common.
+      const sp = opts[Math.floor(Math.pow(Math.random(), 1.4) * opts.length)];
+      const f = new Fish(sp, new THREE.Vector3(x, y, z), this.seed++ * 977);
+      this.fish.push(f);
+      this.group.add(f.root);
+      return;
+    }
+  }
+
+  remove(f: Fish) {
+    f.alive = false;
+    f.dispose();
+    this.fish.splice(this.fish.indexOf(f), 1);
+  }
+
+  clear() {
+    for (const f of [...this.fish]) this.remove(f);
+  }
+
+  update(dt: number, t: number, player: THREE.Vector3, playerHidden: boolean) {
+    if (!this.enabled) return;
+    const depth = -player.y;
+    const want = player.y > -1 ? 10 : depth > 300 ? 16 : 22;
+    if (this.fish.length < want && Math.random() < 0.5) this.spawnNear(player);
+
+    const toP = new THREE.Vector3();
+    const desired = new THREE.Vector3();
+    for (const f of [...this.fish]) {
+      const p = f.root.position;
+      const dist = p.distanceTo(player);
+      if (dist > 95) {
+        this.remove(f);
+        continue;
+      }
+      const sp = f.sp;
+      f.biteCd -= dt;
+      f.retarget -= dt;
+      if (f.hitFlash > 0) {
+        f.hitFlash -= dt;
+        if (f.hitFlash <= 0) f.meshes.forEach((m, i) => (m.material = f.origMats[i]));
+      }
+      toP.subVectors(player, p);
+      let speed = sp.speed * 0.45;
+      const aggro = 16 + sp.infection * 26;
+      if (sp.aggressive && dist < aggro && !playerHidden && f.biteCd < 0.6) {
+        desired.copy(toP).normalize();
+        speed = sp.speed * (1.1 + sp.infection * 0.5);
+        const reach = f.radius + 1.1;
+        if (dist < reach && f.biteCd <= 0) {
+          this.events.bite(f);
+          f.biteCd = 1.5 - sp.infection * 0.4;
+          f.vel.copy(toP).normalize().multiplyScalar(-sp.speed * 1.5); // recoil
+        }
+      } else if (!sp.aggressive && dist < 9) {
+        desired.copy(toP).normalize().negate();
+        speed = sp.speed * 1.4;
+      } else {
+        if (f.retarget <= 0 || p.distanceTo(f.target) < 2) {
+          f.retarget = 3 + Math.random() * 5;
+          const mid = -(sp.minDepth + sp.maxDepth) / 2;
+          f.target.set(
+            p.x + (Math.random() - 0.5) * 30,
+            p.y + (Math.random() - 0.5) * 8 + (mid - p.y) * 0.1,
+            p.z + (Math.random() - 0.5) * 30,
+          );
+        }
+        desired.subVectors(f.target, p).normalize();
+      }
+      // Infected fish twitch.
+      if (sp.infection > 0.3 && Math.random() < sp.infection * 0.04) {
+        f.vel.add(new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(sp.speed * 1.6));
+      }
+      f.vel.lerp(desired.multiplyScalar(speed), Math.min(1, dt * 1.6));
+      p.addScaledVector(f.vel, dt);
+      const floor = floorY(p.x, p.z) + 0.8;
+      if (p.y < floor) p.y = floor;
+      if (p.y > -1) p.y = -1;
+      if (f.vel.lengthSq() > 0.01) {
+        const look = p.clone().add(f.vel);
+        const q0 = f.root.quaternion.clone();
+        f.root.lookAt(look);
+        f.root.quaternion.copy(q0.slerp(f.root.quaternion, Math.min(1, dt * 5)));
+      }
+      // Swim wiggle down the spine.
+      const freq = 4 + f.vel.length() * 1.5;
+      f.phase += dt * freq;
+      const amp = sp.shape === 'eel' ? 0.35 : 0.22;
+      f.segs.forEach((s, i) => {
+        const k = i / (f.segs.length - 1);
+        s.position.x = Math.sin(f.phase - i * 0.9) * amp * k * k * sp.size * 0.5;
+        s.rotation.y = Math.cos(f.phase - i * 0.9) * amp * k;
+      });
+      if (f.jaw) f.jaw.rotation.x = 0.15 + Math.max(0, Math.sin(t * 3 + f.phase)) * 0.35 + (f.biteCd > 1 ? 0.5 : 0);
+    }
+  }
+}

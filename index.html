@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Morrow Lake</title>
+    <meta name="description" content="A relaxing underwater spearfishing game." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600&family=Special+Elite&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <canvas id="game"></canvas>
+
+    <div id="vignette"></div>
+    <div id="grain"></div>
+    <div id="damage"></div>
+    <div id="pressure-warn">⚠ HULL PRESSURE — ASCEND</div>
+
+    <div id="hud" class="hidden">
+      <div id="crosshair"><span></span></div>
+      <div id="top-left">
+        <div id="depth"><b>0</b><small>m</small></div>
+        <div id="zone">Sunlit Shallows</div>
+        <div id="rating">Suit rated to 90 m</div>
+      </div>
+      <div id="bars">
+        <div class="bar"><label>AIR</label><div class="track"><div id="air-fill" class="fill air"></div></div></div>
+        <div class="bar"><label>HP</label><div class="track"><div id="hp-fill" class="fill hp"></div></div></div>
+        <div class="bar"><label>SPEAR</label><div class="track"><div id="reload-fill" class="fill reload"></div></div></div>
+      </div>
+      <div id="top-right">
+        <div id="money">$0</div>
+        <div id="cargo">Catch: 0 fish · $0</div>
+      </div>
+      <div id="hint"></div>
+      <div id="log"></div>
+      <div id="toasts"></div>
+    </div>
+
+    <div id="letterbox"><div class="lb top"></div><div class="lb bottom"></div></div>
+    <div id="caption"></div>
+    <div id="fade"></div>
+
+    <div id="title" class="screen">
+      <div class="title-card">
+        <div class="sun"></div>
+        <h1>Morrow Lake</h1>
+        <p class="tag">a relaxing spearfishing game 🐟</p>
+        <p class="blurb">Dive the crystal waters of Morrow Lake, spear colourful fish, and sell your catch at Teodor's boat to upgrade your gear. The deeper fish fetch the best prices!</p>
+        <div class="buttons">
+          <button id="btn-start">Start Fishing</button>
+          <button id="btn-new" class="ghost hidden">New Game</button>
+        </div>
+        <div class="controls">
+          <span><kbd>W A S D</kbd> swim</span>
+          <span><kbd>Mouse</kbd> look</span>
+          <span><kbd>Click</kbd> fire harpoon</span>
+          <span><kbd>Space</kbd> / <kbd>C</kbd> up / down</span>
+          <span><kbd>Shift</kbd> sprint</span>
+          <span><kbd>E</kbd> boat shop (at surface)</span>
+          <span><kbd>M</kbd> mute</span>
+        </div>
+      </div>
+    </div>
+
+    <div id="pause" class="screen hidden">
+      <div class="panel">
+        <h2>Paused</h2>
+        <button id="btn-resume">Resume</button>
+      </div>
+    </div>
+
+    <div id="shop" class="screen hidden">
+      <div class="panel shop-panel">
+        <div class="shop-head">
+          <h2>Teodor's Boat</h2>
+          <div id="shop-money">$0</div>
+        </div>
+        <p id="teodor" class="teodor"></p>
+        <div class="shop-cols">
+          <section>
+            <h3>Your catch</h3>
+            <ul id="catch-list"></ul>
+            <button id="btn-sell">Sell all</button>
+          </section>
+          <section>
+            <h3>Upgrades</h3>
+            <div id="upgrades"></div>
+          </section>
+          <section>
+            <h3>Field journal</h3>
+            <ul id="journal"></ul>
+          </section>
+        </div>
+        <button id="btn-close" class="ghost">Back to the water <kbd>E</kbd></button>
+      </div>
+    </div>
+
+    <div id="dead" class="screen hidden">
+      <div class="panel">
+        <h2 id="dead-title">You blacked out</h2>
+        <p id="dead-text"></p>
+        <button id="btn-respawn">Wake up on the boat</button>
+      </div>
+    </div>
+
+    <div id="ending" class="screen hidden">
+      <div class="ending-card">
+        <h1>ANTOPLASM</h1>
+        <p class="sub">You reached the bottom of Morrow Lake.</p>
+        <div id="stats"></div>
+        <p class="epitaph">The lake is quiet again. The fish near the surface are bright and healthy.<br />For now.</p>
+        <button id="btn-again">Dive again</button>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
