@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { buildBoat, buildDock, BOAT_HALF_LENGTH, BOAT_HALF_WIDTH } from './boat';
+import { buildBoat, buildDock, BOAT_HALF_LENGTH, BOAT_HALF_WIDTH, DOCK_HALF_WIDTH, DOCK_POST_OFFSET, DOCK_POST_RADIUS, DOCK_POST_SPACING, DOCK_TOP } from './boat';
 import { BOAT_POS, LAKE_RADIUS, MAX_DEPTH } from './config';
 
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
@@ -320,11 +320,12 @@ export class World {
   }
 
   boat = new THREE.Group();
+  dock = { x: BOAT_POS.x + BOAT_HALF_WIDTH + 1.6, z0: BOAT_POS.z - 3, z1: BOAT_POS.z + 62 };
   private buildBoat() {
     this.boat = buildBoat();
     this.boat.position.set(BOAT_POS.x, 0, BOAT_POS.z);
     this.lakeGroup.add(this.boat);
-    this.lakeGroup.add(buildDock(BOAT_POS.z - 3, BOAT_POS.z + 62, BOAT_POS.x + BOAT_HALF_WIDTH + 1.6));
+    this.lakeGroup.add(buildDock(this.dock.z0, this.dock.z1, this.dock.x));
   }
 
   private buildParticles() {
@@ -408,6 +409,51 @@ export class World {
     this.particleMat.size = 0.14 + smooth(250, 600, depth) * 0.16;
   }
 
+  /** Jetty collision: a solid deck slab (down to just under the waterline, so you can't surface
+   *  beneath it) plus round posts that run all the way to the lakebed. Player radius ~0.45 m. */
+  private collideDock(p: THREE.Vector3) {
+    const R = 0.45;
+    const d = this.dock;
+    const lx = p.x - d.x;
+    if (p.z > d.z0 - R && p.z < d.z1 + R) {
+      // Deck slab
+      const bottom = -0.5;
+      if (Math.abs(lx) < DOCK_HALF_WIDTH + R && p.y > bottom - R && p.y < DOCK_TOP + R) {
+        const pen = [
+          ['x', DOCK_HALF_WIDTH + R - Math.abs(lx)],
+          ['down', p.y - (bottom - R)],
+          ['zlo', p.z - (d.z0 - R)],
+          ['zhi', d.z1 + R - p.z],
+        ] as const;
+        let best: (typeof pen)[number] = pen[0];
+        for (const q of pen) if (q[1] < best[1]) best = q;
+        if (best[0] === 'x') p.x = d.x + Math.sign(lx || 1) * (DOCK_HALF_WIDTH + R);
+        else if (best[0] === 'down') p.y = bottom - R;
+        else if (best[0] === 'zlo') p.z = d.z0 - R;
+        else p.z = d.z1 + R;
+      }
+      // Posts
+      if (p.y < DOCK_TOP) {
+        const k = Math.round((p.z - d.z0) / DOCK_POST_SPACING);
+        const pz = d.z0 + k * DOCK_POST_SPACING;
+        if (k >= 0 && pz <= d.z1) {
+          for (const s of [-1, 1]) {
+            const dx = p.x - (d.x + s * DOCK_POST_OFFSET);
+            const dz = p.z - pz;
+            const dist = Math.hypot(dx, dz);
+            const min = DOCK_POST_RADIUS + R;
+            if (dist < min) {
+              const nx = dist > 1e-4 ? dx / dist : 1;
+              const nz = dist > 1e-4 ? dz / dist : 0;
+              p.x = d.x + s * DOCK_POST_OFFSET + nx * min;
+              p.z = pz + nz * min;
+            }
+          }
+        }
+      }
+    }
+  }
+
   clampToLake(p: THREE.Vector3) {
     const r = Math.hypot(p.x, p.z);
     const max = LAKE_RADIUS - 8;
@@ -424,6 +470,7 @@ export class World {
       if (hw - Math.abs(bx) < hl - Math.abs(bz)) p.x = BOAT_POS.x + Math.sign(bx || 1) * hw;
       else p.z = BOAT_POS.z + Math.sign(bz || 1) * hl;
     }
+    this.collideDock(p);
     const f = floorY(p.x, p.z) + 1.6;
     if (p.y < f) p.y = f;
   }

@@ -221,6 +221,13 @@ export function buildBoat() {
   return boat;
 }
 
+// Jetty dimensions, shared by the mesh and the collision in World.clampToLake.
+export const DOCK_HALF_WIDTH = 1.3; // planks + stringers
+export const DOCK_POST_OFFSET = 1.2;
+export const DOCK_POST_SPACING = 3.5;
+export const DOCK_POST_RADIUS = 0.18;
+export const DOCK_TOP = 1.05;
+
 /** Wooden jetty from the boat's side to the shore. */
 export function buildDock(fromZ: number, toZ: number, x: number) {
   const g = new THREE.Group();
@@ -240,9 +247,9 @@ export function buildDock(fromZ: number, toZ: number, x: number) {
     const str = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.22, len), dark);
     str.position.set(x + s * 1.05, 0.78, fromZ + len / 2);
     g.add(str);
-    for (let z = fromZ; z <= toZ; z += 3.5) {
-      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.18, 30, 7), dark);
-      post.position.set(x + s * 1.2, 1.4 - 15, z);
+    for (let z = fromZ; z <= toZ; z += DOCK_POST_SPACING) {
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.16, DOCK_POST_RADIUS, 30, 7), dark);
+      post.position.set(x + s * DOCK_POST_OFFSET, 1.4 - 15, z);
       g.add(post);
     }
   }
