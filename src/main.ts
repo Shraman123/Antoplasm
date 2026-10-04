@@ -3,7 +3,7 @@ import { Audio } from './audio';
 import { AIR, ARMOR, BOAT_POS, DEPTH_LOGS, ENDING_DEPTH, HARPOON, rollIndividual, SPECIES, Species } from './config';
 import { Cutscene } from './cutscene';
 import { Fish, FishManager, fleshMat } from './fish';
-import { BubbleTrail, buildSpear, HarpoonGun } from './harpoon';
+import { BubbleTrail, buildFlechette, buildSpear, HarpoonGun } from './harpoon';
 import { Vents } from './vents';
 import { floorY, World, zoneName } from './world';
 
@@ -33,15 +33,20 @@ interface Save {
   maxDepth: number;
   playTime: number;
   bandages: number;
+  harpoonV: number; // harpoon table version, for migrating old saves
 }
 const SAVE_KEY = 'morrow-lake-save-v1';
-const fresh = (): Save => ({ money: 0, air: 0, harpoon: 0, armor: 0, journal: [], logs: [], caught: 0, earned: 0, deaths: 0, maxDepth: 0, playTime: 0, bandages: 0 });
+const fresh = (): Save => ({ money: 0, air: 0, harpoon: 0, armor: 0, journal: [], logs: [], caught: 0, earned: 0, deaths: 0, maxDepth: 0, playTime: 0, bandages: 0, harpoonV: 2 });
 let save: Save = fresh();
 let hasSave = false;
 try {
   const raw = localStorage.getItem(SAVE_KEY);
   if (raw) {
-    save = { ...fresh(), ...JSON.parse(raw) };
+    const loaded = JSON.parse(raw);
+    save = { ...fresh(), ...loaded };
+    // v1 had six harpoon tiers; v2 inserted new ones in between. Keep the same gun.
+    if (!loaded.harpoonV) save.harpoon = [0, 1, 3, 4, 6, 8][loaded.harpoon ?? 0] ?? 0;
+    save.harpoonV = 2;
     hasSave = true;
   }
 } catch { /* storage unavailable: play without saving */ }
@@ -90,6 +95,16 @@ function syncHarpoonLook() {
   scene.add(spear);
 }
 const bubbles = new BubbleTrail(scene);
+// Scattergun flechettes: a small pool, no line attached.
+interface Pellet { obj: THREE.Object3D; vel: THREE.Vector3; prev: THREE.Vector3; travelled: number; active: boolean }
+const pellets: Pellet[] = [];
+for (let i = 0; i < 16; i++) {
+  const obj = buildFlechette(0.6);
+  obj.scale.set(2.4, 2.4, 1.2);
+  obj.visible = false;
+  scene.add(obj);
+  pellets.push({ obj, vel: new THREE.Vector3(), prev: new THREE.Vector3(), travelled: 0, active: false });
+}
 const ropeGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
 const rope = new THREE.Line(ropeGeo, new THREE.LineBasicMaterial({ color: 0xbbbbaa, transparent: true, opacity: 0.6 }));
 rope.frustumCulled = false;
@@ -160,6 +175,7 @@ function toast(html: string, infected = false) {
 // ---------- Harpoon ----------
 function fire() {
   if (mode !== 'play' || reloadT > 0) return;
+  if (tierH().pellets) return fireScatter();
   if (spearState.active) endSpear(); // a fresh shot cuts the line on the last one
   const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
   spear.position.copy(camera.position).addScaledVector(dir, 0.6).add(new THREE.Vector3(0, -0.12, 0));
@@ -173,6 +189,64 @@ function fire() {
   reloadT = tierH().reload;
   audio.fire();
   shake = Math.max(shake, 0.12);
+}
+
+/** Shotgun: a cone of flechettes, each rolling its own direction inside the spread. */
+function fireScatter() {
+  const t = tierH();
+  const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+  const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+  const up = new THREE.Vector3(0, 1, 0).applyQuaternion(camera.quaternion);
+  const origin = camera.position.clone().addScaledVector(fwd, 0.7).addScaledVector(up, -0.12);
+  let launched = 0;
+  for (const p of pellets) {
+    if (launched >= t.pellets!) break;
+    if (p.active) continue;
+    const a = Math.random() * Math.PI * 2;
+    const r = Math.sqrt(Math.random()) * t.spread!;
+    const dir = fwd.clone().addScaledVector(right, Math.cos(a) * r).addScaledVector(up, Math.sin(a) * r).normalize();
+    p.obj.position.copy(origin);
+    p.obj.lookAt(origin.clone().add(dir));
+    p.vel.copy(dir).multiplyScalar(t.speed * (0.92 + Math.random() * 0.16)).add(vel);
+    p.travelled = 0;
+    p.active = true;
+    p.obj.visible = true;
+    launched++;
+  }
+  for (let i = 0; i < 18; i++) bubbles.emit(origin.clone().addScaledVector(fwd, Math.random() * 1.5)); // muzzle blast
+  gun.fire();
+  reloadT = t.reload;
+  audio.blast();
+  shake = Math.max(shake, 0.45);
+}
+
+function updatePellets(dt: number) {
+  const t = tierH();
+  for (const p of pellets) {
+    if (!p.active) continue;
+    p.prev.copy(p.obj.position);
+    p.vel.multiplyScalar(Math.exp(-1.1 * dt));
+    p.obj.position.addScaledVector(p.vel, dt);
+    p.travelled += p.vel.length() * dt;
+    if (Math.random() < 0.25) bubbles.emit(p.obj.position);
+    let hit = false;
+    for (const f of [...fishMgr.fish]) {
+      if (!f.alive) continue;
+      if (segClosest(p.prev, p.obj.position, f.root.position) < f.radius + 0.2 + p.travelled * 0.02) {
+        f.hp -= t.damage;
+        f.flash();
+        audio.hit();
+        if (f.hp <= 0) catchFish(f);
+        else f.vel.addScaledVector(p.vel, 0.03);
+        hit = true;
+        break;
+      }
+    }
+    if (hit || p.travelled > (t.range ?? 32) || p.obj.position.y < floorY(p.obj.position.x, p.obj.position.z) || p.vel.length() < 10) {
+      p.active = false;
+      p.obj.visible = false;
+    }
+  }
 }
 
 const segClosest = (a: THREE.Vector3, b: THREE.Vector3, p: THREE.Vector3) => {
@@ -201,6 +275,10 @@ function updateSpear(dt: number) {
   if (spearState.travelled > 65 || spear.position.y < floorY(spear.position.x, spear.position.z) || spearState.vel.length() < 8) endSpear();
 }
 function endSpear() {
+  for (const p of pellets) {
+    p.active = false;
+    p.obj.visible = false;
+  }
   spearState.active = false;
   spear.visible = false;
   rope.visible = false;
@@ -359,7 +437,7 @@ function renderShop() {
 
   const rows: [keyof Save, string, { cost: number; label: string }[], (i: number) => string][] = [
     ['air', 'Air tank', AIR, (i) => `${AIR[i].seconds}s of air`],
-    ['harpoon', 'Harpoon', HARPOON, (i) => `${HARPOON[i].damage} dmg · ${HARPOON[i].reload}s reload`],
+    ['harpoon', 'Harpoon', HARPOON, (i) => (HARPOON[i].pellets ? `shotgun: ${HARPOON[i].pellets} × ${HARPOON[i].damage} dmg flechettes · ${HARPOON[i].reload}s` : `${HARPOON[i].damage} dmg · ${HARPOON[i].reload}s reload`)],
     ['armor', 'Armour', ARMOR, (i) => `-${Math.round(ARMOR[i].reduction * 100)}% dmg · rated ${ARMOR[i].rating} m`],
   ];
   const up = $('upgrades');
@@ -596,6 +674,7 @@ function frame() {
     updatePlayer(dt);
     reloadT -= dt;
     updateSpear(dt);
+    updatePellets(dt);
     gun.setLoaded(reloadT <= 0);
   }
   if (mode === 'play' || mode === 'title' || mode === 'paused' || mode === 'shop' || mode === 'dead') {

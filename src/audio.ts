@@ -162,6 +162,11 @@ export class Audio {
     this.noiseHit(0.25, 0.5, 2400, 'bandpass', 300);
     this.tone(220, 0.2, 0.2, 'triangle', undefined, 60);
   }
+  blast() {
+    this.noiseHit(0.5, 1.0, 1400, 'lowpass', 120);
+    this.tone(90, 0.35, 0.6, 'sawtooth', undefined, 35);
+    this.noiseHit(0.15, 0.6, 4000, 'bandpass', 600);
+  }
   hit() {
     this.tone(140, 0.15, 0.5, 'square', undefined, 50);
     this.noiseHit(0.12, 0.4, 900);

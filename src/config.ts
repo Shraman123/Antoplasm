@@ -66,7 +66,7 @@ export function rollIndividual(sp: Species, depth: number): Species {
 
 export interface Tier { cost: number; label: string }
 export interface AirTier extends Tier { seconds: number }
-export interface HarpoonTier extends Tier { damage: number; reload: number; speed: number }
+export interface HarpoonTier extends Tier { damage: number; reload: number; speed: number; pellets?: number; spread?: number; range?: number }
 export interface ArmorTier extends Tier { reduction: number; rating: number }
 
 export const AIR: AirTier[] = [
@@ -81,10 +81,15 @@ export const AIR: AirTier[] = [
 export const HARPOON: HarpoonTier[] = [
   { cost: 0, label: 'Sling Spear', damage: 1, reload: 0.6, speed: 55 },
   { cost: 55, label: 'Band Gun', damage: 2, reload: 0.5, speed: 65 },
-  { cost: 160, label: 'Pneumatic Gun', damage: 3, reload: 0.42, speed: 78 },
+  { cost: 110, label: 'Twin-Band Gun', damage: 3, reload: 0.48, speed: 72 },
+  { cost: 200, label: 'Pneumatic Gun', damage: 4, reload: 0.42, speed: 80 },
   { cost: 380, label: 'Barbed Railgun', damage: 5, reload: 0.34, speed: 90 },
-  { cost: 820, label: 'Powerhead', damage: 8, reload: 0.27, speed: 105 },
-  { cost: 1650, label: 'Bone Splitter', damage: 12, reload: 0.2, speed: 125 },
+  { cost: 560, label: 'Long Rail', damage: 7, reload: 0.32, speed: 100 },
+  { cost: 820, label: 'Powerhead', damage: 9, reload: 0.27, speed: 108 },
+  { cost: 1150, label: 'Gas Lance', damage: 11, reload: 0.25, speed: 118 },
+  { cost: 1650, label: 'Bone Splitter', damage: 13, reload: 0.2, speed: 125 },
+  // Shotgun: a cone of barbed flechettes, deadly up close, falls off past ~30 m.
+  { cost: 2400, label: 'Antoplasm Scattergun', damage: 6, reload: 0.75, speed: 95, pellets: 8, spread: 0.085, range: 32 },
 ];
 
 export const ARMOR: ArmorTier[] = [

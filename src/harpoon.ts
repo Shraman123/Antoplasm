@@ -10,14 +10,19 @@ interface TierLook {
   bands: number; // rubber band pairs; 0 = pneumatic
   powerhead: boolean;
   bone: boolean;
+  scatter?: boolean;
 }
 const LOOKS: TierLook[] = [
-  { wood: 0x7a5232, metal: 0x9aa2a8, band: 0x2a2a2a, bands: 1, powerhead: false, bone: false },
-  { wood: 0x6b4423, metal: 0xa8b0b6, band: 0x3f6fb8, bands: 1, powerhead: false, bone: false },
-  { wood: 0x3a3e44, metal: 0xb8c0c6, band: 0x000000, bands: 0, powerhead: false, bone: false },
-  { wood: 0x4a2c18, metal: 0x707a84, band: 0xc04030, bands: 2, powerhead: false, bone: false },
-  { wood: 0x23272b, metal: 0x5c646c, band: 0x2f8f4f, bands: 2, powerhead: true, bone: false },
-  { wood: 0x2a1214, metal: 0x3a3034, band: 0x8a1020, bands: 3, powerhead: false, bone: true },
+  { wood: 0x7a5232, metal: 0x9aa2a8, band: 0x2a2a2a, bands: 1, powerhead: false, bone: false }, // Sling Spear
+  { wood: 0x6b4423, metal: 0xa8b0b6, band: 0x3f6fb8, bands: 1, powerhead: false, bone: false }, // Band Gun
+  { wood: 0x5a3a20, metal: 0xa0a8ae, band: 0xd0a020, bands: 2, powerhead: false, bone: false }, // Twin-Band
+  { wood: 0x3a3e44, metal: 0xb8c0c6, band: 0x000000, bands: 0, powerhead: false, bone: false }, // Pneumatic
+  { wood: 0x4a2c18, metal: 0x707a84, band: 0xc04030, bands: 2, powerhead: false, bone: false }, // Barbed Railgun
+  { wood: 0x3a2418, metal: 0x6a747c, band: 0x7a3fb0, bands: 3, powerhead: false, bone: false }, // Long Rail
+  { wood: 0x23272b, metal: 0x5c646c, band: 0x2f8f4f, bands: 2, powerhead: true, bone: false }, // Powerhead
+  { wood: 0x1e2226, metal: 0x4a5258, band: 0x000000, bands: 0, powerhead: true, bone: false }, // Gas Lance
+  { wood: 0x2a1214, metal: 0x3a3034, band: 0x8a1020, bands: 3, powerhead: false, bone: true }, // Bone Splitter
+  { wood: 0x1c0c0e, metal: 0x2e2628, band: 0x000000, bands: 0, powerhead: false, bone: true, scatter: true }, // Scattergun
 ];
 
 const std = (color: number, rough = 0.6, metal = 0) => new THREE.MeshStandardMaterial({ color, roughness: rough, metalness: metal });
@@ -86,6 +91,28 @@ export function buildSpear(tier: number, length = 1.15) {
   return g;
 }
 
+/** Short barbed dart for the scattergun, along +Z. Bone tip wrapped in red. */
+export function buildFlechette(length = 0.6) {
+  const g = new THREE.Group();
+  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, length, 5), std(0x3a3034, 0.3, 0.7));
+  shaft.rotation.x = Math.PI / 2;
+  g.add(shaft);
+  const tip = new THREE.Mesh(new THREE.ConeGeometry(0.009, 0.05, 5), boneMat);
+  tip.rotation.x = Math.PI / 2;
+  tip.position.z = length / 2 + 0.025;
+  g.add(tip);
+  const ring = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.02, 6), veinMat);
+  ring.rotation.x = Math.PI / 2;
+  ring.position.z = length / 2 - 0.01;
+  g.add(ring);
+  for (const s of [-1, 1]) {
+    const fin = new THREE.Mesh(new THREE.BoxGeometry(0.002, 0.016, 0.04), veinMat);
+    fin.position.set(0, s * 0.006, -length / 2 + 0.02);
+    g.add(fin);
+  }
+  return g;
+}
+
 export class HarpoonGun {
   root = new THREE.Group();
   private model = new THREE.Group();
@@ -94,6 +121,7 @@ export class HarpoonGun {
   private bandsSlack = new THREE.Group();
   private reel = new THREE.Group();
   private kick = 0;
+  private tubeEnds: THREE.Vector3[] = [];
   private tier = -1;
   /** Gun-local point where the line leaves the reel. */
   readonly lineLocal = new THREE.Vector3(0, -0.035, -0.17);
@@ -145,13 +173,32 @@ export class HarpoonGun {
     // Safety lever
     add(new THREE.BoxGeometry(0.004, 0.012, 0.022), std(0xd04030, 0.5), [0.025, 0.01, 0.02]);
 
-    // Barrel
-    add(new THREE.CylinderGeometry(0.017, 0.017, 0.86, 14), metal, [0, 0.008, -0.56], [Math.PI / 2, 0, 0]);
-    add(new THREE.BoxGeometry(0.01, 0.008, 0.84), metal, [0, 0.028, -0.55]); // spear track
-    // Barrel clamps
-    for (const z of [-0.3, -0.62]) add(new THREE.CylinderGeometry(0.02, 0.02, 0.018, 12), rubber, [0, 0.008, z], [Math.PI / 2, 0, 0]);
+    const muzzleZ = -0.99;
+    if (L.scatter) {
+      // Scattergun: seven short tubes in a hex bundle, collared, over a ribbed pump and a drum.
+      this.tubeEnds = [];
+      for (let k = 0; k < 7; k++) {
+        const a = (k / 6) * Math.PI * 2;
+        const r = k === 6 ? 0 : 0.026;
+        const x = Math.cos(a) * r;
+        const y = 0.012 + Math.sin(a) * r;
+        add(new THREE.CylinderGeometry(0.012, 0.012, 0.62, 10), metal, [x, y, -0.62], [Math.PI / 2, 0, 0]);
+        this.tubeEnds.push(new THREE.Vector3(x, y, -0.93));
+      }
+      for (const z of [-0.38, -0.66, -0.9]) add(new THREE.CylinderGeometry(0.044, 0.044, 0.03, 14), std(0x5a1a1e, 0.5, 0.5), [0, 0.012, z], [Math.PI / 2, 0, 0]);
+      const pump = add(new THREE.BoxGeometry(0.05, 0.04, 0.22), wood, [0, -0.045, -0.55]);
+      for (let k = 0; k < 6; k++) add(new THREE.BoxGeometry(0.054, 0.006, 0.01), rubber, [0, -0.02, -0.09 + k * 0.035], [0, 0, 0], pump);
+      add(new THREE.CylinderGeometry(0.055, 0.055, 0.07, 16), std(0x3a2a2c, 0.4, 0.6), [0, -0.05, -0.22], [0, 0, Math.PI / 2]);
+      add(new THREE.TorusGeometry(0.056, 0.006, 6, 18), veinMat, [0, -0.05, -0.22], [0, Math.PI / 2, 0]);
+    } else {
+      // Barrel
+      add(new THREE.CylinderGeometry(0.017, 0.017, 0.86, 14), metal, [0, 0.008, -0.56], [Math.PI / 2, 0, 0]);
+      add(new THREE.BoxGeometry(0.01, 0.008, 0.84), metal, [0, 0.028, -0.55]); // spear track
+      // Barrel clamps
+      for (const z of [-0.3, -0.62]) add(new THREE.CylinderGeometry(0.02, 0.02, 0.018, 12), rubber, [0, 0.008, z], [Math.PI / 2, 0, 0]);
+    }
 
-    if (L.bands === 0) {
+    if (L.bands === 0 && !L.scatter) {
       // Pneumatic: air chamber under the barrel with a gauge.
       add(new THREE.CylinderGeometry(0.024, 0.024, 0.5, 14), std(0x2c5f8a, 0.35, 0.6), [0, -0.03, -0.42], [Math.PI / 2, 0, 0]);
       add(new THREE.CylinderGeometry(0.016, 0.016, 0.01, 14), brass, [0.02, -0.005, -0.2], [0, 0, Math.PI / 2]);
@@ -159,10 +206,11 @@ export class HarpoonGun {
     }
 
     // Muzzle with band holes and a sight
-    const muzzleZ = -0.99;
-    add(new THREE.BoxGeometry(0.075, 0.04, 0.045), metal, [0, 0.008, muzzleZ]);
-    add(new THREE.BoxGeometry(0.004, 0.02, 0.012), std(0xf2c040, 0.4), [0, 0.04, muzzleZ - 0.005]);
-    for (const s of [-1, 1]) add(new THREE.TorusGeometry(0.008, 0.003, 6, 10), metal, [s * 0.034, 0.01, muzzleZ], [0, Math.PI / 2, 0]);
+    if (!L.scatter) {
+      add(new THREE.BoxGeometry(0.075, 0.04, 0.045), metal, [0, 0.008, muzzleZ]);
+      for (const s of [-1, 1]) add(new THREE.TorusGeometry(0.008, 0.003, 6, 10), metal, [s * 0.034, 0.01, muzzleZ], [0, Math.PI / 2, 0]);
+    }
+    add(new THREE.BoxGeometry(0.004, 0.02, 0.012), std(0xf2c040, 0.4), [0, L.scatter ? 0.07 : 0.04, muzzleZ - 0.005]);
 
     // Rubber bands: stretched back to the spear notch when loaded, hanging slack when fired.
     const bandMat = std(L.band, 0.55);
@@ -192,8 +240,9 @@ export class HarpoonGun {
     }
     m.add(this.bandsLoaded, this.bandsSlack);
 
-    // Line reel under the barrel
+    // Line reel under the barrel (the scattergun has no line)
     this.reel.position.copy(this.lineLocal);
+    this.reel.visible = !L.scatter;
     add(new THREE.CylinderGeometry(0.036, 0.036, 0.006, 18), metal, [-0.011, 0, 0], [0, 0, Math.PI / 2], this.reel);
     add(new THREE.CylinderGeometry(0.036, 0.036, 0.006, 18), metal, [0.011, 0, 0], [0, 0, Math.PI / 2], this.reel);
     add(new THREE.CylinderGeometry(0.028, 0.028, 0.017, 18), std(0xd8d0a0, 0.8), [0, 0, 0], [0, 0, Math.PI / 2], this.reel);
@@ -210,6 +259,18 @@ export class HarpoonGun {
       m.add(tube([new THREE.Vector3(0.018, 0.0, -0.15), new THREE.Vector3(-0.012, 0.022, -0.45), new THREE.Vector3(0.016, 0.0, -0.75), new THREE.Vector3(-0.01, 0.02, -0.95)], 0.004, veinMat));
     }
 
+    if (L.scatter) {
+      // Loaded: a flechette tip poking out of every tube.
+      this.loadedSpear = new THREE.Group();
+      for (const e of this.tubeEnds) {
+        const tip = buildFlechette(0.12);
+        tip.position.copy(e);
+        tip.rotation.y = Math.PI;
+        this.loadedSpear.add(tip);
+      }
+      m.add(this.loadedSpear);
+      return;
+    }
     this.loadedSpear = buildSpear(tier, 1.0);
     this.loadedSpear.position.set(0, 0.036, -0.67);
     m.add(this.loadedSpear);
