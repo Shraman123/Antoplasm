@@ -13,7 +13,7 @@ function station(t: number) {
   const bowTaper = t > 0.62 ? Math.sqrt(Math.max(0, 1 - (t - 0.62) / 0.38)) : 1;
   const sternTaper = 0.86 + 0.14 * Math.min(1, t / 0.2);
   return {
-    w: Math.max(0.04, BOAT_HALF_WIDTH * bowTaper * sternTaper),
+    w: t >= 1 ? 0 : BOAT_HALF_WIDTH * bowTaper * sternTaper, // sides meet at the stem: no gap
     top: 1.05 + 0.55 * t * t,
     keel: 1.15 * (0.75 + 0.25 * Math.sin(Math.PI * Math.min(1, t * 1.1))),
   };
@@ -118,6 +118,12 @@ export function buildBoat() {
   };
 
   add(hullGeometry(), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, flatShading: true, side: THREE.DoubleSide }), [0, 0, 0]);
+
+  // Stem post: a wooden bar down the bow seam, from the gunwale to the keel.
+  const bowTop = station(1).top;
+  const bowKeel = station(1).keel;
+  const stem = add(new THREE.BoxGeometry(0.14, bowTop + bowKeel + 0.1, 0.14), darkWood, [0, (bowTop - bowKeel) / 2, LENGTH / 2 + 0.03]);
+  stem.rotation.x = 0.04;
 
   // Deck follows the hull outline, just below the gunwale.
   const deckShape = new THREE.Shape();
