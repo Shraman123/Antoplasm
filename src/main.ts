@@ -232,7 +232,7 @@ function updatePellets(dt: number) {
     let hit = false;
     for (const f of [...fishMgr.fish]) {
       if (!f.alive) continue;
-      if (segClosest(p.prev, p.obj.position, f.root.position) < f.radius + 0.2 + p.travelled * 0.02) {
+      if (segClosest(p.prev, p.obj.position, f.root.position) < f.radius + 0.35 + p.travelled * 0.03) {
         f.hp -= t.damage;
         f.flash();
         audio.hit();

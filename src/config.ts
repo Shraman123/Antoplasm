@@ -89,7 +89,7 @@ export const HARPOON: HarpoonTier[] = [
   { cost: 1150, label: 'Gas Lance', damage: 11, reload: 0.25, speed: 118 },
   { cost: 1650, label: 'Bone Splitter', damage: 13, reload: 0.2, speed: 125 },
   // Shotgun: a cone of barbed flechettes, deadly up close, falls off past ~30 m.
-  { cost: 2400, label: 'Antoplasm Scattergun', damage: 6, reload: 0.75, speed: 95, pellets: 8, spread: 0.085, range: 32 },
+  { cost: 2400, label: 'Antoplasm Scattergun', damage: 10, reload: 1.0, speed: 95, pellets: 10, spread: 0.16, range: 34 },
 ];
 
 export const ARMOR: ArmorTier[] = [

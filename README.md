@@ -25,7 +25,7 @@ WASD swim Â· mouse look Â· click fire Â· Space/C up/down Â· Shift sprint
 | 500â€“620 m | Antoplasm Trench | Antoplasm Husk â†’ ending |
 
 - **Big game:** six large species (Grandfather Carp, Lake Sturgeon, Muskellunge, Paddlefish, Wels Catfish, Cathedral Sturgeon). Each one rolls healthy or infected when it spawns, and the deeper it is, the likelier the rot. Infected ones are tougher, aggressive and worth up to about 2.6× as much.
-- **Harpoon:** 10 tiers (Sling Spear → Band Gun → Twin-Band → Pneumatic → Barbed Railgun → Long Rail → Powerhead → Gas Lance → Bone Splitter → **Antoplasm Scattergun**). The view-model changes per tier. The final tier is a shotgun: a cone of 8 barbed flechettes, 6 damage each, out to about 32 m. Old saves are migrated so you keep the same gun.
+- **Harpoon:** 10 tiers (Sling Spear → Band Gun → Twin-Band → Pneumatic → Barbed Railgun → Long Rail → Powerhead → Gas Lance → Bone Splitter → **Antoplasm Scattergun**). The view-model changes per tier. The final tier is a shotgun: a wide cone of 10 barbed flechettes, 10 damage each, out to about 34 m, with a 1 s cooldown. Old saves are migrated so you keep the same gun.
 - **Hydrothermal vents:** 16 glowing chimneys on the floor from the Weeping Depths (260 m) down. Swim into a bubble column to breathe (+16 air-seconds/s). Each vent holds about 45 s of air and recovers slowly, so you can't camp on one.
 - The armour's depth rating gates progress: below it, pressure crushes you. Air drains faster the deeper you go. If you drown, you lose your catch.
 - Infection is procedural: each fish is a spine of segments, and antoplasm swaps segments for bare rib hoops and pulsing red flesh in proportion to the species' infection level.
