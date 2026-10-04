@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { buildBoat, buildDock, BOAT_HALF_LENGTH, BOAT_HALF_WIDTH } from './boat';
 import { BOAT_POS, LAKE_RADIUS, MAX_DEPTH } from './config';
 
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
@@ -320,48 +321,10 @@ export class World {
 
   boat = new THREE.Group();
   private buildBoat() {
-    const wood = new THREE.MeshStandardMaterial({ color: 0x8a5a34, roughness: 0.8, flatShading: true });
-    const paint = new THREE.MeshStandardMaterial({ color: 0xe9e2cf, roughness: 0.7, flatShading: true });
-    const red = new THREE.MeshStandardMaterial({ color: 0xb8402e, roughness: 0.7 });
-    const hull = new THREE.Mesh(new THREE.CylinderGeometry(2.6, 1.6, 9, 8, 1, false, 0, Math.PI), paint);
-    hull.rotation.set(Math.PI / 2, 0, Math.PI);
-    hull.position.y = 0.4;
-    this.boat.add(hull);
-    const deck = new THREE.Mesh(new THREE.BoxGeometry(5, 0.2, 9), wood);
-    deck.position.y = 0.45;
-    this.boat.add(deck);
-    const stripe = new THREE.Mesh(new THREE.BoxGeometry(5.3, 0.25, 9.1), red);
-    stripe.position.y = 0.2;
-    this.boat.add(stripe);
-    const cabin = new THREE.Mesh(new THREE.BoxGeometry(3, 2.2, 3), paint);
-    cabin.position.set(0, 1.6, -1.5);
-    this.boat.add(cabin);
-    const roof = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.25, 3.4), red);
-    roof.position.set(0, 2.8, -1.5);
-    this.boat.add(roof);
-    const lantern = new THREE.Mesh(
-      new THREE.SphereGeometry(0.3, 8, 6),
-      new THREE.MeshStandardMaterial({ color: 0xffd27a, emissive: 0xffb340, emissiveIntensity: 2 }),
-    );
-    lantern.position.set(1.2, 3.3, -0.2);
-    this.boat.add(lantern);
-    const sign = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.8, 0.1), new THREE.MeshStandardMaterial({ color: 0x3f7f9a }));
-    sign.position.set(0, 2.1, 0.05);
-    this.boat.add(sign);
+    this.boat = buildBoat();
     this.boat.position.set(BOAT_POS.x, 0, BOAT_POS.z);
     this.lakeGroup.add(this.boat);
-
-    // Dock to shore
-    for (let i = 0; i < 18; i++) {
-      const plank = new THREE.Mesh(new THREE.BoxGeometry(3, 0.25, 1.1), wood);
-      plank.position.set(BOAT_POS.x + 4.5, 0.7, BOAT_POS.z + 6 + i * 2.6);
-      this.lakeGroup.add(plank);
-      if (i % 3 === 0) {
-        const post = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 30, 5), wood);
-        post.position.set(BOAT_POS.x + 6, -14, BOAT_POS.z + 6 + i * 2.6);
-        this.lakeGroup.add(post);
-      }
-    }
+    this.lakeGroup.add(buildDock(BOAT_POS.z - 3, BOAT_POS.z + 62, BOAT_POS.x + BOAT_HALF_WIDTH + 1.6));
   }
 
   private buildParticles() {
@@ -389,6 +352,10 @@ export class World {
   update(dt: number, t: number, cam: THREE.Vector3) {
     const depth = Math.max(0, -cam.y);
     this.kelpUniform.value = t;
+    // Gentle bob and roll on the swell.
+    this.boat.position.y = Math.sin(t * 0.9) * 0.06;
+    this.boat.rotation.z = Math.sin(t * 0.7) * 0.025;
+    this.boat.rotation.x = Math.sin(t * 0.55 + 1) * 0.012;
     const above = cam.y > 0.05;
 
     // From above the lake reads as solid water; from below the surface stays translucent.
@@ -451,9 +418,11 @@ export class World {
     // Don't swim through Teodor's boat.
     const bx = p.x - BOAT_POS.x;
     const bz = p.z - BOAT_POS.z;
-    if (Math.abs(bx) < 3.4 && Math.abs(bz) < 5.4 && p.y > -2.2) {
-      if (3.4 - Math.abs(bx) < 5.4 - Math.abs(bz)) p.x = BOAT_POS.x + Math.sign(bx || 1) * 3.4;
-      else p.z = BOAT_POS.z + Math.sign(bz || 1) * 5.4;
+    const hw = BOAT_HALF_WIDTH + 0.6;
+    const hl = BOAT_HALF_LENGTH + 0.9;
+    if (Math.abs(bx) < hw && Math.abs(bz) < hl && p.y > -1.8) {
+      if (hw - Math.abs(bx) < hl - Math.abs(bz)) p.x = BOAT_POS.x + Math.sign(bx || 1) * hw;
+      else p.z = BOAT_POS.z + Math.sign(bz || 1) * hl;
     }
     const f = floorY(p.x, p.z) + 1.6;
     if (p.y < f) p.y = f;
