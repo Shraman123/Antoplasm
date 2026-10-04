@@ -85,7 +85,6 @@ export class World {
   private particles: THREE.Points;
   private particleBase: Float32Array;
   private particleMat: THREE.PointsMaterial;
-  private shafts: THREE.Mesh[] = [];
   private flickerT = 0;
   private skyColor = new THREE.Color(0xa9d4e8);
 
@@ -122,7 +121,6 @@ export class World {
     });
     this.buildScatter();
     this.buildBoat();
-    this.buildShafts();
     const p = this.buildParticles();
     this.particles = p.points;
     this.particleBase = p.base;
@@ -366,28 +364,6 @@ export class World {
     }
   }
 
-  private buildShafts() {
-    const mat = new THREE.MeshBasicMaterial({
-      color: 0xdff6ff,
-      transparent: true,
-      opacity: 0.022,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-      side: THREE.DoubleSide,
-      fog: false,
-    });
-    const geo = new THREE.CylinderGeometry(1.5, 5, 60, 8, 1, true);
-    geo.translate(0, -35, 0);
-    const r = rng(3);
-    for (let i = 0; i < 40; i++) {
-      const sh = new THREE.Mesh(geo, mat);
-      sh.position.set((r() - 0.5) * 500, 0, (r() - 0.5) * 500);
-      sh.rotation.z = 0.25;
-      this.shafts.push(sh);
-      this.lakeGroup.add(sh);
-    }
-  }
-
   private buildParticles() {
     const N = 2400;
     const base = new Float32Array(N * 3);
@@ -447,7 +423,6 @@ export class World {
     }
 
     this.growthMat.emissiveIntensity = 0.45 + 0.35 * Math.sin(t * 1.7) + 0.15 * Math.sin(t * 4.3);
-    for (const s of this.shafts) s.visible = depth < 80 && !above;
 
     // Marine snow → flakes of flesh.
     const pos = this.particles.geometry.attributes.position as THREE.BufferAttribute;
