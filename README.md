@@ -24,6 +24,8 @@ WASD swim · mouse look · click fire · Space/C up/down · Shift sprint · E bo
 | 380–500 m | The Rot | Lantern Maw |
 | 500–620 m | Antoplasm Trench | Antoplasm Husk → ending |
 
+- **Big game:** six large species (Grandfather Carp, Lake Sturgeon, Muskellunge, Paddlefish, Wels Catfish, Cathedral Sturgeon). Each one rolls healthy or infected when it spawns, and the deeper it is, the likelier the rot. Infected ones are tougher, aggressive and worth up to about 2.6� as much.
+- **Harpoon:** a detailed view-model (wood stock, grooved grip, trigger guard, line reel, rubber bands that stretch and go slack, barbed spear with flopper) whose look changes with each tier: rental, blue bands, pneumatic air chamber, double bands, powerhead tip, and a grown bone gun. Fired spears leave a bubble trail.
 - The armour's depth rating gates progress: below it, pressure crushes you. Air drains faster the deeper you go. If you drown, you lose your catch.
 - Infection is procedural: each fish is a spine of segments, and antoplasm swaps segments for bare rib hoops and pulsing red flesh in proportion to the species' infection level.
 - Atmosphere ramps up with depth: fog colour and density, a dying sun, a flickering flashlight, marine snow that turns into flesh flakes, film grain, whispers, a heartbeat and distant whale calls. The calm pentatonic music fades out below 110 m.

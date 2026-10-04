@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { SPECIES, Species } from './config';
+import { rollIndividual, SPECIES, Species } from './config';
 import { floorY, rng } from './world';
 
 // Shared materials so dozens of fish don't each allocate their own.
@@ -26,7 +26,7 @@ const ribArc = new THREE.TorusGeometry(1, 0.07, 4, 10, Math.PI * 1.35);
 
 const bodyMats = new Map<string, THREE.MeshStandardMaterial>();
 function bodyMat(sp: Species, belly = false) {
-  const key = sp.id + (belly ? 'b' : '');
+  const key = sp.id + (belly ? 'b' : '') + Math.round(sp.infection * 10);
   let m = bodyMats.get(key);
   if (!m) {
     const c = new THREE.Color(belly ? sp.belly : sp.color);
@@ -50,7 +50,7 @@ export function buildFish(sp: Species, seed: number): Built {
   const r = rng(seed);
   const root = new THREE.Group();
   const meshes: THREE.Mesh[] = [];
-  const N = sp.shape === 'eel' ? 12 : 7;
+  const N = sp.shape === 'eel' ? 12 : sp.large ? 9 : 7;
   const L = sp.size;
   const segLen = L / N;
   const segs: THREE.Group[] = [];
@@ -64,8 +64,8 @@ export function buildFish(sp: Species, seed: number): Built {
     return m;
   };
 
-  const heightK = sp.shape === 'round' ? 0.42 : sp.shape === 'flat' ? 0.16 : sp.shape === 'eel' ? 0.07 : sp.shape === 'angler' ? 0.3 : 0.18;
-  const widthK = sp.shape === 'flat' ? 0.24 : sp.shape === 'eel' ? 0.07 : sp.shape === 'angler' ? 0.28 : 0.12;
+  const heightK = sp.shape === 'round' ? 0.42 : sp.shape === 'deep' ? 0.3 : sp.shape === 'flat' ? 0.16 : sp.shape === 'eel' ? 0.07 : sp.shape === 'angler' ? 0.3 : 0.18;
+  const widthK = sp.shape === 'flat' ? 0.24 : sp.shape === 'deep' ? 0.15 : sp.shape === 'eel' ? 0.07 : sp.shape === 'angler' ? 0.28 : 0.12;
 
   for (let i = 0; i < N; i++) {
     const t = i / (N - 1); // 0 = head, 1 = tail
@@ -99,6 +99,13 @@ export function buildFish(sp: Species, seed: number): Built {
         const ls = (0.15 + r() * 0.35) * Math.max(w, h * 0.5);
         add(seg, lowSphere, fleshMat, [Math.cos(a) * w * 0.85, Math.sin(a) * h * 0.6, (r() - 0.5) * segLen * 0.5], [ls, ls, ls]);
       }
+      // Bony scutes in rows along the back and flanks.
+      if (sp.features?.includes('scutes') && !head) {
+        for (const [x, y] of [[0, 0.85], [-0.75, 0.25], [0.75, 0.25]]) {
+          const sc = Math.max(w, h) * 0.18;
+          add(seg, cone, boneMat, [x * w, y * h * 0.8, 0], [sc, sc * 1.4, sc], [0, 0, -x * 1.2]);
+        }
+      }
       // Stripes on perch.
       if (sp.id === 'perch' && i > 0 && i < N - 1) {
         add(seg, sphere, stripeMat, [0, h * 0.15, 0], [w * 1.03, h * 0.7, segLen * 0.18]);
@@ -127,9 +134,16 @@ export function buildFish(sp: Species, seed: number): Built {
       if (sp.shape === 'angler') {
         add(seg, cyl, bodyMat(sp), [0, h * 1.1, segLen * 0.4], [0.02, h * 1.3, 0.02], [0.6, 0, 0]);
         add(seg, sphere, lureMat, [0, h * 1.6, segLen * 1.2], [L * 0.05, L * 0.05, L * 0.05]);
-        const glow = new THREE.PointLight(0xff3040, 3, 9, 1.5);
-        glow.position.set(0, h * 1.6, segLen * 1.2);
-        seg.add(glow);
+        // No PointLight here: a light per spawned fish changes the scene's light count,
+        // which recompiles every material and tanks the frame rate. The emissive lure is enough.
+      }
+      if (sp.features?.includes('snout')) {
+        add(seg, sphere, sp.infection > 0.5 ? boneMat : bodyMat(sp), [0, h * 0.05, segLen * 0.5 + L * 0.17], [w * 0.75, h * 0.06, L * 0.18]);
+      }
+      if (sp.features?.includes('barbels')) {
+        for (const [x, z] of [[-1, 0.6], [1, 0.6], [-0.5, 0.9], [0.5, 0.9]]) {
+          add(seg, cyl, bodyMat(sp, true), [x * w * 0.5, -h * 0.4, segLen * z], [0.012 * L, L * 0.08, 0.012 * L], [0.5, 0, x * 0.3]);
+        }
       }
       if (sp.shape === 'flat') {
         for (const side of [-1, 1]) add(seg, cyl, bodyMat(sp, true), [side * w * 0.7, -h * 0.2, segLen * 0.7], [0.01, L * 0.25, 0.01], [Math.PI / 2.5, side * 0.6, 0]);
@@ -223,7 +237,18 @@ export class FishManager {
       const opts = this.speciesAt(-y);
       if (!opts.length) continue;
       // Rarer (deeper-ranged) species within a band are less common.
-      const sp = opts[Math.floor(Math.pow(Math.random(), 1.4) * opts.length)];
+      let total = 0;
+      for (const o of opts) total += o.weight ?? 1;
+      let pick = Math.random() * total;
+      let sp = opts[0];
+      for (const o of opts) {
+        pick -= o.weight ?? 1;
+        if (pick <= 0) {
+          sp = o;
+          break;
+        }
+      }
+      sp = rollIndividual(sp, -y);
       const f = new Fish(sp, new THREE.Vector3(x, y, z), this.seed++ * 977);
       this.fish.push(f);
       this.group.add(f.root);

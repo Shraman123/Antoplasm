@@ -1,8 +1,9 @@
 import * as THREE from 'three';
 import { Audio } from './audio';
-import { AIR, ARMOR, BOAT_POS, DEPTH_LOGS, ENDING_DEPTH, HARPOON, SPECIES, Species } from './config';
+import { AIR, ARMOR, BOAT_POS, DEPTH_LOGS, ENDING_DEPTH, HARPOON, rollIndividual, SPECIES, Species } from './config';
 import { Cutscene } from './cutscene';
 import { Fish, FishManager, fleshMat } from './fish';
+import { BubbleTrail, buildSpear, HarpoonGun } from './harpoon';
 import { floorY, World, zoneName } from './world';
 
 // ---------- DOM ----------
@@ -66,44 +67,25 @@ addEventListener('resize', () => {
   camera.updateProjectionMatrix();
 });
 
-// Harpoon gun held in view.
-const gun = new THREE.Group();
-{
-  const metal = new THREE.MeshStandardMaterial({ color: 0x8a949c, metalness: 0.5, roughness: 0.35 });
-  const grip = new THREE.MeshStandardMaterial({ color: 0x6b4423, roughness: 0.7 });
-  const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.03, 0.75, 8), metal);
-  barrel.rotation.x = Math.PI / 2;
-  barrel.position.z = -0.3;
-  const body = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.09, 0.32), grip);
-  body.position.z = 0.02;
-  const handle = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.16, 0.06), grip);
-  handle.position.set(0, -0.1, 0.08);
-  handle.rotation.x = 0.3;
-  gun.add(barrel, body, handle);
+// Harpoon gun held in view, plus the spear that actually flies.
+const gun = new HarpoonGun(camera);
+let spear = new THREE.Group();
+let spearTier = -1;
+function syncHarpoonLook() {
+  const tier = save.harpoon;
+  gun.setTier(tier);
+  if (tier === spearTier) return;
+  spearTier = tier;
+  const vis = spear.visible;
+  scene.remove(spear);
+  spear = new THREE.Group();
+  const model = buildSpear(tier, 1.4);
+  model.scale.set(2.6, 2.6, 1.15); // chunkier than the view-model so it reads at range
+  spear.add(model);
+  spear.visible = vis;
+  scene.add(spear);
 }
-gun.position.set(0.2, -0.2, -0.55);
-gun.scale.setScalar(0.55);
-camera.add(gun);
-const gunSpear = new THREE.Mesh(
-  new THREE.CylinderGeometry(0.008, 0.008, 0.8, 5),
-  new THREE.MeshStandardMaterial({ color: 0xc8ccd0, metalness: 0.8, roughness: 0.3 }),
-);
-gunSpear.rotation.x = Math.PI / 2;
-gunSpear.position.set(0, 0.05, -0.35);
-gun.add(gunSpear);
-
-const spearMat = new THREE.MeshStandardMaterial({ color: 0xd0d4d8, metalness: 0.8, roughness: 0.3 });
-const spear = new THREE.Group();
-{
-  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 1.4, 5), spearMat);
-  shaft.rotation.x = Math.PI / 2;
-  const tip = new THREE.Mesh(new THREE.ConeGeometry(0.04, 0.16, 5), spearMat);
-  tip.rotation.x = Math.PI / 2;
-  tip.position.z = 0.75;
-  spear.add(shaft, tip);
-}
-spear.visible = false;
-scene.add(spear);
+const bubbles = new BubbleTrail(scene);
 const ropeGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
 const rope = new THREE.Line(ropeGeo, new THREE.LineBasicMaterial({ color: 0xbbbbaa, transparent: true, opacity: 0.6 }));
 rope.frustumCulled = false;
@@ -182,7 +164,7 @@ function fire() {
   spearState.travelled = 0;
   spear.visible = true;
   rope.visible = true;
-  gunSpear.visible = false;
+  gun.fire();
   reloadT = tierH().reload;
   audio.fire();
   shake = Math.max(shake, 0.12);
@@ -343,11 +325,15 @@ function sellAll() {
 function renderShop() {
   $('shop-money').textContent = `$${save.money}`;
   $('teodor').textContent = teodorLine();
-  const counts = new Map<Species, number>();
-  for (const f of cargo) counts.set(f, (counts.get(f) ?? 0) + 1);
+  // Group identical catches; infected big game rolls its own price, so key on name + price.
+  const counts = new Map<string, [Species, number]>();
+  for (const f of cargo) {
+    const k = f.name + f.price;
+    counts.set(k, [f, (counts.get(k)?.[1] ?? 0) + 1]);
+  }
   const list = $('catch-list');
   list.innerHTML = cargo.length
-    ? [...counts].map(([sp, n]) => `<li class="${sp.infection >= 0.15 ? 'infected' : ''}"><span>${n}× ${sp.name}</span><span>$${sp.price * n}</span></li>`).join('')
+    ? [...counts.values()].map(([sp, n]) => `<li class="${sp.infection >= 0.15 ? 'infected' : ''}"><span>${n}× ${sp.name}</span><span>$${sp.price * n}</span></li>`).join('')
     : '<li><span style="opacity:.6">Nothing yet. Go catch something!</span></li>';
   ($('btn-sell') as HTMLButtonElement).disabled = !cargo.length;
   $('btn-sell').textContent = cargo.length ? `Sell all — $${cargo.reduce((s, f) => s + f.price, 0)}` : 'Sell all';
@@ -448,7 +434,7 @@ function triggerEnding() {
   ui.hud.classList.add('hidden');
   ui.pressure.style.display = 'none';
   endSpear();
-  gun.visible = false;
+  gun.root.visible = false;
   cutscene.start();
 }
 
@@ -556,12 +542,13 @@ function updateHud(dt: number) {
 function frame() {
   const dt = Math.min(0.05, clock.getDelta());
   time += dt;
+  syncHarpoonLook();
   if (mode === 'play') {
     save.playTime += dt;
     updatePlayer(dt);
     reloadT -= dt;
     updateSpear(dt);
-    gunSpear.visible = !spearState.active && reloadT <= 0;
+    gun.setLoaded(!spearState.active && reloadT <= 0);
   }
   if (mode === 'play' || mode === 'title' || mode === 'paused' || mode === 'shop' || mode === 'dead') {
     camera.quaternion.setFromEuler(new THREE.Euler(pitch, yaw, 0, 'YXZ'));
@@ -577,13 +564,15 @@ function frame() {
   fleshMat.emissiveIntensity = 0.45 + Math.sin(time * 2.1) * 0.25;
   if (playing) updateHud(dt);
   if (spearState.active) {
-    const muzzle = new THREE.Vector3(0.2, -0.18, -0.8).applyMatrix4(camera.matrixWorld);
+    const muzzle = gun.lineOrigin(new THREE.Vector3());
+    if (Math.random() < 0.7) bubbles.emit(spear.position);
     ropeGeo.attributes.position.setXYZ(0, muzzle.x, muzzle.y, muzzle.z);
     ropeGeo.attributes.position.setXYZ(1, spear.position.x, spear.position.y, spear.position.z);
     ropeGeo.attributes.position.needsUpdate = true;
   }
   // Gun bob + camera shake.
-  gun.position.y = -0.2 + Math.sin(time * 2) * 0.006 + (reloadT > tierH().reload - 0.15 ? 0.02 : 0);
+  gun.update(dt, time, spearState.active);
+  bubbles.update(dt);
   const sh = shakeOverride >= 0 && mode === 'cutscene' ? shakeOverride : shake;
   if (sh > 0) {
     camera.rotateX((Math.random() - 0.5) * sh * 0.03);
@@ -615,8 +604,9 @@ requestAnimationFrame(frame);
   stepCut(sec: number) { manualCut = true; for (let i = 0; i < sec * 30; i++) cutscene.update(1 / 30); },
   get calls() { return renderer.info.render.calls; },
   shop: openShop,
-  spawn(id: string, dist = 5, dx = 0) {
-    const sp = SPECIES.find((s) => s.id === id)!;
+  spawn(id: string, dist = 5, dx = 0, depthRoll?: number) {
+    let sp = SPECIES.find((s) => s.id === id)!;
+    if (depthRoll !== undefined) sp = rollIndividual(sp, depthRoll);
     camera.quaternion.setFromEuler(new THREE.Euler(pitch, yaw, 0, 'YXZ'));
     const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
     const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
@@ -626,6 +616,8 @@ requestAnimationFrame(frame);
     fishMgr.group.add(f.root);
     return f;
   },
+  clearFish() { fishMgr.clear(); },
+  gun,
   freeze(on: boolean) { fishMgr.enabled = !on; },
   give(id: string) { const sp = SPECIES.find((s) => s.id === id)!; cargo.push(sp); },
 };

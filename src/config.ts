@@ -14,8 +14,11 @@ export interface Species {
   belly: number;
   infection: number; // 0 = healthy, 1 = mostly eaten by antoplasm
   aggressive: boolean;
-  shape: 'round' | 'long' | 'eel' | 'flat' | 'angler';
+  shape: 'round' | 'long' | 'eel' | 'flat' | 'angler' | 'deep';
   lore: string;
+  large?: boolean; // big game: rarer spawn, can roll healthy or infected per individual
+  weight?: number; // relative spawn weight (default 1)
+  features?: ('scutes' | 'barbels' | 'snout')[];
 }
 
 export const SPECIES: Species[] = [
@@ -28,7 +31,38 @@ export const SPECIES: Species[] = [
   { id: 'gar', name: 'Hollow Gar', minDepth: 320, maxDepth: 455, price: 195, hp: 12, damage: 25, speed: 5.8, size: 3.3, color: 0x3c3a36, belly: 0x6e655a, infection: 0.68, aggressive: true, shape: 'long', lore: 'More ribcage than fish. The red mass inside it pulses when it sees your light.' },
   { id: 'maw', name: 'Lantern Maw', minDepth: 400, maxDepth: 545, price: 330, hp: 16, damage: 35, speed: 5.0, size: 3.0, color: 0x241c1c, belly: 0x4a3434, infection: 0.82, aggressive: true, shape: 'angler', lore: 'The lure is not a light. It is a swollen knot of antoplasm, glowing.' },
   { id: 'husk', name: 'Antoplasm Husk', minDepth: 480, maxDepth: 640, price: 560, hp: 22, damage: 46, speed: 6.2, size: 4.0, color: 0x1e1414, belly: 0x3a2020, infection: 1, aggressive: true, shape: 'long', lore: 'There is no fish left. Only bone, wrapped in something that learned how to swim.' },
+  // Big game. Each one rolls healthy or infected when it spawns; the deeper, the likelier the rot.
+  { id: 'carp', name: 'Grandfather Carp', minDepth: 12, maxDepth: 120, price: 85, hp: 8, damage: 0, speed: 2.4, size: 3.4, color: 0x8a6a2a, belly: 0xe0c070, infection: 0, aggressive: false, shape: 'deep', lore: 'Older than Teodor, maybe older than the town. Scales like brass coins.', large: true, weight: 0.3, features: ['barbels'] },
+  { id: 'sturgeon', name: 'Lake Sturgeon', minDepth: 25, maxDepth: 170, price: 110, hp: 9, damage: 0, speed: 2.6, size: 4.2, color: 0x6b6458, belly: 0xcfc6b0, infection: 0, aggressive: false, shape: 'long', lore: 'An armoured relic, plated in rows of bony scutes. Gentle.', large: true, weight: 0.3, features: ['scutes', 'barbels'] },
+  { id: 'muskie', name: 'Muskellunge', minDepth: 60, maxDepth: 220, price: 140, hp: 10, damage: 12, speed: 5.6, size: 3.6, color: 0x6f7a44, belly: 0xd8d2a8, infection: 0, aggressive: true, shape: 'long', lore: 'The fish of ten thousand casts. It strikes like a thrown knife.', large: true, weight: 0.3 },
+  { id: 'paddlefish', name: 'Paddlefish', minDepth: 110, maxDepth: 300, price: 210, hp: 12, damage: 0, speed: 3.0, size: 4.6, color: 0x5a6a78, belly: 0xc8d0d8, infection: 0, aggressive: false, shape: 'long', lore: 'A long flat paddle of a snout, sweeping the dark for food.', large: true, weight: 0.25, features: ['snout'] },
+  { id: 'wels', name: 'Wels Catfish', minDepth: 200, maxDepth: 400, price: 320, hp: 18, damage: 20, speed: 3.8, size: 5.8, color: 0x3e3a34, belly: 0x8a7e6a, infection: 0.2, aggressive: true, shape: 'flat', lore: 'Big enough to swallow a dog. The old men say it has swallowed worse.', large: true, weight: 0.25, features: ['barbels'] },
+  { id: 'cathedral', name: 'Cathedral Sturgeon', minDepth: 380, maxDepth: 620, price: 850, hp: 30, damage: 40, speed: 3.6, size: 8, color: 0x2a2422, belly: 0x4a3a34, infection: 0.5, aggressive: true, shape: 'long', lore: 'Eight metres of plated bone. Its scutes are carved with the same patterns as the steps below.', large: true, weight: 0.2, features: ['scutes', 'barbels'] },
 ];
+
+const smoothstep = (a: number, b: number, v: number) => {
+  const t = Math.max(0, Math.min(1, (v - a) / (b - a)));
+  return t * t * (3 - 2 * t);
+};
+
+/** Roll one individual. Big game may come out infected: tougher, angrier and worth far more. */
+export function rollIndividual(sp: Species, depth: number): Species {
+  if (!sp.large) return sp;
+  const chance = 0.06 + 0.9 * smoothstep(30, 450, depth) + sp.infection * 0.3;
+  if (Math.random() > chance) return sp;
+  const inf = Math.min(1, Math.max(sp.infection + 0.2, 0.3 + Math.random() * 0.3 + depth / 1000));
+  return {
+    ...sp,
+    name: `Infected ${sp.name}`,
+    infection: inf,
+    hp: Math.round(sp.hp * (1 + inf * 0.6)),
+    damage: Math.max(sp.damage, Math.round((6 + 30 * inf) * Math.min(1.6, sp.size / 4))),
+    aggressive: true,
+    speed: sp.speed * (1 + inf * 0.35),
+    price: Math.round(sp.price * (1 + inf * 1.6)),
+    lore: `${sp.lore} This one was rotting from the inside, antoplasm ${Math.round(inf * 100)}% through it.`,
+  };
+}
 
 export interface Tier { cost: number; label: string }
 export interface AirTier extends Tier { seconds: number }
