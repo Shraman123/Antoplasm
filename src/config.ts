@@ -89,11 +89,11 @@ export const HARPOON: HarpoonTier[] = [
 
 export const ARMOR: ArmorTier[] = [
   { cost: 0, label: 'Wetsuit', reduction: 0, rating: 90 },
-  { cost: 60, label: 'Neoprene Plate', reduction: 0.15, rating: 175 },
-  { cost: 180, label: 'Chainmail Suit', reduction: 0.3, rating: 275 },
-  { cost: 420, label: 'Pressure Shell', reduction: 0.45, rating: 395 },
-  { cost: 900, label: 'Atmospheric Hardsuit', reduction: 0.58, rating: 525 },
-  { cost: 1800, label: 'Leviathan Hardsuit', reduction: 0.7, rating: 700 },
+  { cost: 60, label: 'Neoprene Plate', reduction: 0.25, rating: 175 },
+  { cost: 180, label: 'Chainmail Suit', reduction: 0.42, rating: 275 },
+  { cost: 420, label: 'Pressure Shell', reduction: 0.57, rating: 395 },
+  { cost: 900, label: 'Atmospheric Hardsuit', reduction: 0.7, rating: 525 },
+  { cost: 1800, label: 'Leviathan Hardsuit', reduction: 0.82, rating: 700 },
 ];
 
 export const MAX_DEPTH = 620; // trench floor
