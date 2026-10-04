@@ -186,6 +186,10 @@ export class Audio {
   sell() {
     [880, 1175].forEach((f, i) => setTimeout(() => this.tone(f, 0.25, 0.15, 'sine'), i * 80));
   }
+  bandage() {
+    this.noiseHit(0.3, 0.25, 3000, 'highpass', 900);
+    [523, 784].forEach((f, i) => setTimeout(() => this.tone(f, 0.3, 0.12, 'sine'), 120 + i * 90));
+  }
   heartbeat(vol: number) {
     this.tone(55, 0.18, vol, 'sine', undefined, 38);
     setTimeout(() => this.tone(50, 0.2, vol * 0.8, 'sine', undefined, 34), 220);

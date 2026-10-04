@@ -39,7 +39,7 @@ button.ghost { background: transparent; color: inherit; border: 1px solid rgba(2
 .fill.reload { background: #f2d27a; }
 #top-right { position: absolute; right: 24px; top: 20px; text-align: right; text-shadow: 0 1px 4px #000; }
 #money { font-size: 30px; font-weight: 600; color: #ffd76a; }
-#cargo { font-size: 13px; opacity: 0.85; }
+#cargo, #bandages { font-size: 13px; opacity: 0.85; }
 #hint { position: absolute; left: 50%; bottom: 90px; transform: translateX(-50%); font-size: 15px; padding: 8px 16px; background: rgba(0,0,0,0.45); border-radius: 8px; opacity: 0; transition: opacity 0.3s; }
 #hint.show { opacity: 1; }
 #log { position: absolute; left: 50%; top: 16%; transform: translateX(-50%); width: min(640px, 90vw); text-align: center; font-family: 'Special Elite', monospace; font-size: 19px; line-height: 1.5; text-shadow: 0 2px 8px #000; opacity: 0; transition: opacity 1.2s; }

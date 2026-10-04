@@ -12,7 +12,7 @@ const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getEleme
 const canvas = $<HTMLCanvasElement>('game');
 const ui = {
   hud: $('hud'), depth: $('depth').querySelector('b')!, zone: $('zone'), rating: $('rating'),
-  air: $('air-fill'), hp: $('hp-fill'), reload: $('reload-fill'), money: $('money'), cargo: $('cargo'),
+  air: $('air-fill'), hp: $('hp-fill'), reload: $('reload-fill'), money: $('money'), cargo: $('cargo'), bandages: $('bandages'),
   hint: $('hint'), log: $('log'), toasts: $('toasts'), crosshair: $('crosshair'),
   vignette: $('vignette'), grain: $('grain'), damage: $('damage'), pressure: $('pressure-warn'),
   title: $('title'), pause: $('pause'), shop: $('shop'), dead: $('dead'), ending: $('ending'),
@@ -32,9 +32,10 @@ interface Save {
   deaths: number;
   maxDepth: number;
   playTime: number;
+  bandages: number;
 }
 const SAVE_KEY = 'morrow-lake-save-v1';
-const fresh = (): Save => ({ money: 0, air: 0, harpoon: 0, armor: 0, journal: [], logs: [], caught: 0, earned: 0, deaths: 0, maxDepth: 0, playTime: 0 });
+const fresh = (): Save => ({ money: 0, air: 0, harpoon: 0, armor: 0, journal: [], logs: [], caught: 0, earned: 0, deaths: 0, maxDepth: 0, playTime: 0, bandages: 0 });
 let save: Save = fresh();
 let hasSave = false;
 try {
@@ -223,6 +224,7 @@ function catchFish(f: Fish) {
 addEventListener('keydown', (e) => {
   keys.add(e.code);
   if (e.code === 'KeyM') audio.muted = !audio.muted;
+  if (e.code === 'KeyH' && mode === 'play') useBandage();
   if (e.code === 'KeyE') {
     if (mode === 'play' && nearBoat()) openShop();
     else if (mode === 'shop') closeShop();
@@ -291,6 +293,19 @@ function startGame() {
   if (!save.logs.length) showLog('Morrow Lake. Teodor says the big ones are further out, where the bottom drops away.', 8);
 }
 
+// ---------- Bandages ----------
+const BANDAGE_COST = 20;
+const BANDAGE_HEAL = 10; // % of max health
+function useBandage() {
+  if (save.bandages <= 0) return toast("No bandages — buy them at Teodor's boat");
+  if (hp >= 100) return toast('Already at full health');
+  save.bandages--;
+  hp = Math.min(100, hp + BANDAGE_HEAL);
+  audio.bandage();
+  toast(`Bandaged +${BANDAGE_HEAL}% health <small>${save.bandages} left</small>`);
+  persist();
+}
+
 // ---------- Shop ----------
 const nearBoat = () => Math.hypot(camera.position.x - BOAT_POS.x, camera.position.z - BOAT_POS.z) < 15 && camera.position.y > -2.5;
 
@@ -349,6 +364,24 @@ function renderShop() {
   ];
   const up = $('upgrades');
   up.innerHTML = '';
+  const band = document.createElement('div');
+  band.className = 'upg';
+  band.innerHTML = `
+    <div class="row"><span class="name">Bandages</span><span class="stat">You have ${save.bandages}</span></div>
+    <div class="stat">Heals ${BANDAGE_HEAL}% health. Press <kbd>H</kbd> underwater to use one.</div>
+    <div class="row"><span class="stat">$${BANDAGE_COST} each</span><span><button data-n="1" ${save.money < BANDAGE_COST ? 'disabled' : ''}>Buy 1</button> <button data-n="5" ${save.money < BANDAGE_COST * 5 ? 'disabled' : ''}>Buy 5 · $${BANDAGE_COST * 5}</button></span></div>`;
+  band.querySelectorAll('button').forEach((b) => {
+    b.onclick = () => {
+      const n = Number(b.dataset.n);
+      if (save.money < BANDAGE_COST * n) return;
+      save.money -= BANDAGE_COST * n;
+      save.bandages += n;
+      audio.buy();
+      persist();
+      renderShop();
+    };
+  });
+  up.appendChild(band);
   for (const [key, name, tiers, stat] of rows) {
     const cur = save[key] as number;
     const next = tiers[cur + 1];
@@ -530,6 +563,7 @@ function updateHud(dt: number) {
   ui.reload.style.width = `${(1 - Math.max(0, reloadT) / tierH().reload) * 100}%`;
   ui.money.textContent = `$${save.money}`;
   ui.cargo.textContent = `Catch: ${cargo.length} fish · $${cargo.reduce((s, f) => s + f.price, 0)}`;
+  ui.bandages.textContent = `Bandages: ${save.bandages}${save.bandages && hp < 100 ? ' · H to use' : ''}`;
   const vent = vents.active;
   const ventHint = vent ? (vents.reserveOf(vent) > 0.02 ? `Breathing vent gas — reserve ${Math.round(vents.reserveOf(vent) * 100)}%` : 'Vent spent — it needs time to recover') : '';
   const hint = nearBoat() ? "Press E — Teodor's boat (sell & upgrade)" : ventHint ? ventHint : air < 0.25 && depth > 2 ? 'Air low — surface!' : '';
@@ -632,6 +666,7 @@ requestAnimationFrame(frame);
   },
   clearFish() { fishMgr.clear(); },
   setAir(a: number) { air = a; },
+  setHp(h: number) { hp = h; },
   place(x: number, y: number, z: number, p = 0, yw = 0) { camera.position.set(x, y, z); pitch = p; yaw = yw; },
   vents,
   gun,

@@ -1,0 +1,27 @@
+// Bandages: buy in shop, use with H underwater, check heal + count, and the no-bandage case.
+import { chromium } from 'playwright-core';
+const browser = await chromium.launch({ executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe', headless: true, args: ['--use-angle=d3d11', '--enable-gpu', '--ignore-gpu-blocklist'] });
+const page = await (await browser.newContext({ viewport: { width: 1280, height: 760 } })).newPage();
+const errs = []; page.on('pageerror', (e) => errs.push(e.message));
+await page.goto(process.env.QA_URL ?? 'http://localhost:5173/');
+await page.waitForFunction(() => !!window.__game);
+await page.evaluate(() => { localStorage.clear(); window.__game.play(); window.__game.setSave({ money: 130 }); window.__game.shop(); });
+await page.click('text=Buy 5');
+await page.click('text=Buy 1');
+await page.screenshot({ path: 'qa-out/bandage-shop.png' });
+console.log('after buying 6:', await page.evaluate(() => [window.__game.save.bandages, window.__game.save.money]));
+await page.click('#btn-close');
+await page.evaluate(() => { window.__game.teleport(60, 0, 200); window.__game.setHp(50); });
+await page.keyboard.press('KeyH');
+await page.keyboard.press('KeyH');
+await page.waitForTimeout(100);
+console.log('hp 50 + 2 bandages ->', Math.round(await page.evaluate(() => window.__game.hp)), 'left', await page.evaluate(() => window.__game.save.bandages), '| HUD:', await page.textContent('#bandages'));
+await page.evaluate(() => { window.__game.setHp(97); });
+await page.keyboard.press('KeyH');
+console.log('hp 97 + 1 ->', Math.round(await page.evaluate(() => window.__game.hp)));
+await page.evaluate(() => { window.__game.setSave({ bandages: 0 }); window.__game.setHp(40); });
+await page.keyboard.press('KeyH');
+await page.waitForTimeout(200);
+console.log('no bandages: hp', Math.round(await page.evaluate(() => window.__game.hp)), '| toast:', await page.textContent('#toasts'));
+console.log(errs.length ? errs.join('\n') : 'no page errors');
+await browser.close();
