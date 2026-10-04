@@ -415,6 +415,12 @@ export class World {
     this.kelpUniform.value = t;
     const above = cam.y > 0.05;
 
+    // From above the lake reads as solid water; from below the surface stays translucent.
+    const wm = this.water.material as THREE.MeshStandardMaterial;
+    wm.opacity = above ? 1 : 0.55;
+    wm.transparent = !above;
+    wm.depthWrite = above;
+    wm.color.set(above ? 0x2c7590 : 0x7cc3d6);
     if (above) {
       this.fog.color.copy(this.skyColor);
       this.fog.density = 0.0022;

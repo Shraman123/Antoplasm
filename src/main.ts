@@ -197,11 +197,11 @@ const segClosest = (a: THREE.Vector3, b: THREE.Vector3, p: THREE.Vector3) => {
 function updateSpear(dt: number) {
   if (!spearState.active) return;
   spearState.prev.copy(spear.position);
-  spearState.vel.multiplyScalar(Math.exp(-0.8 * dt));
+  spearState.vel.multiplyScalar(Math.exp(-0.4 * dt));
   spear.position.addScaledVector(spearState.vel, dt);
   spearState.travelled += spearState.vel.length() * dt;
   for (const f of fishMgr.fish) {
-    if (segClosest(spearState.prev, spear.position, f.root.position) < f.radius + 0.15) {
+    if (segClosest(spearState.prev, spear.position, f.root.position) < f.radius + 0.35 + spearState.travelled * 0.05) {
       f.hp -= tierH().damage;
       f.flash();
       audio.hit();
@@ -211,7 +211,7 @@ function updateSpear(dt: number) {
       return;
     }
   }
-  if (spearState.travelled > 42 || spear.position.y < floorY(spear.position.x, spear.position.z) || spearState.vel.length() < 8) endSpear();
+  if (spearState.travelled > 65 || spear.position.y < floorY(spear.position.x, spear.position.z) || spearState.vel.length() < 8) endSpear();
 }
 function endSpear() {
   spearState.active = false;
@@ -468,7 +468,7 @@ function updatePlayer(dt: number) {
     .addScaledVector(fwd, k('KeyW') - k('KeyS'))
     .addScaledVector(right, k('KeyD') - k('KeyA'))
     .add(new THREE.Vector3(0, k('Space') - k('KeyC') - k('ControlLeft'), 0));
-  if (acc.lengthSq() > 0) acc.normalize().multiplyScalar(sprint ? 26 : 16);
+  if (acc.lengthSq() > 0) acc.normalize().multiplyScalar(sprint ? 50 : 32);
   const above = pos.y > -0.4;
   vel.addScaledVector(acc, dt);
   vel.multiplyScalar(Math.exp(-2.3 * dt));
@@ -546,8 +546,11 @@ function updateHud(dt: number) {
   }
   // Crosshair lights up when a fish is in line.
   const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
-  const far = camera.position.clone().addScaledVector(dir, 35);
-  ui.crosshair.classList.toggle('target', fishMgr.fish.some((f) => segClosest(camera.position, far, f.root.position) < f.radius));
+  const far = camera.position.clone().addScaledVector(dir, 60);
+  ui.crosshair.classList.toggle('target', fishMgr.fish.some((f) => {
+    const d = f.root.position.distanceTo(camera.position);
+    return d < 60 && segClosest(camera.position, far, f.root.position) < f.radius + 0.35 + d * 0.05;
+  }));
 }
 
 function frame() {
