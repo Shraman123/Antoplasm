@@ -27,19 +27,19 @@ export const SPECIES: Species[] = [
   { id: 'bluegill', name: 'Bluegill', minDepth: 1, maxDepth: 45, price: 5, hp: 1, damage: 0, speed: 3.2, size: 0.75, color: 0x4f8fc0, belly: 0xf2c46a, infection: 0, aggressive: false, shape: 'round', lore: 'A bright little sunfish. Harmless.' },
   { id: 'perch', name: 'Yellow Perch', minDepth: 8, maxDepth: 80, price: 10, hp: 2, damage: 0, speed: 3.6, size: 1.0, color: 0xc9b23c, belly: 0xeee6b0, infection: 0, aggressive: false, shape: 'long', lore: 'Striped and skittish. Sells well at the market.' },
   { id: 'trout', name: 'Silver Trout', minDepth: 40, maxDepth: 135, price: 20, hp: 3, damage: 0, speed: 4.4, size: 1.3, color: 0x9fb4c0, belly: 0xe7eef2, infection: 0.05, aggressive: false, shape: 'long', lore: 'Some have small grey spots near the gills. Probably nothing.' },
-  { id: 'pike', name: 'Lake Pike', minDepth: 90, maxDepth: 210, price: 38, hp: 5, damage: 7, speed: 5.2, size: 1.9, color: 0x55703c, belly: 0xc8c89a, infection: 0.18, aggressive: true, shape: 'long', lore: 'It bites. There are wet red patches where its scales have fallen out.' , behavior: 'ambush' },
-  { id: 'eel', name: 'Sallow Eel', minDepth: 150, maxDepth: 285, price: 65, hp: 6, damage: 11, speed: 4.6, size: 2.8, color: 0x6d6450, belly: 0x9a8f78, infection: 0.32, aggressive: true, shape: 'eel', lore: 'Its skin comes away in sheets. Underneath, something red keeps moving.' , behavior: 'weave' },
-  { id: 'catfish', name: 'Weeping Catfish', minDepth: 230, maxDepth: 365, price: 115, hp: 9, damage: 17, speed: 4.2, size: 2.6, color: 0x4a3d36, belly: 0x86715e, infection: 0.5, aggressive: true, shape: 'flat', lore: 'Antoplasm has eaten through to the spine. It is still alive. It is still hungry.' , behavior: 'stalk' },
-  { id: 'gar', name: 'Hollow Gar', minDepth: 320, maxDepth: 455, price: 240, hp: 12, damage: 25, speed: 5.8, size: 3.3, color: 0x3c3a36, belly: 0x6e655a, infection: 0.68, aggressive: true, shape: 'long', lore: 'More ribcage than fish. The red mass inside it pulses when it sees your light.' , behavior: 'charge' },
-  { id: 'maw', name: 'Lantern Maw', minDepth: 400, maxDepth: 545, price: 440, hp: 16, damage: 35, speed: 5.0, size: 3.0, color: 0x241c1c, belly: 0x4a3434, infection: 0.82, aggressive: true, shape: 'angler', lore: 'The lure is not a light. It is a swollen knot of antoplasm, glowing.' , behavior: 'lure' },
-  { id: 'husk', name: 'Antoplasm Husk', minDepth: 480, maxDepth: 640, price: 720, hp: 22, damage: 46, speed: 6.2, size: 4.0, color: 0x1e1414, belly: 0x3a2020, infection: 1, aggressive: true, shape: 'long', lore: 'There is no fish left. Only bone, wrapped in something that learned how to swim.' , behavior: 'pack' },
+  { id: 'pike', name: 'Lake Pike', minDepth: 90, maxDepth: 210, price: 38, hp: 8, damage: 7, speed: 5.2, size: 1.9, color: 0x55703c, belly: 0xc8c89a, infection: 0.18, aggressive: true, shape: 'long', lore: 'It bites. There are wet red patches where its scales have fallen out.' , behavior: 'ambush' },
+  { id: 'eel', name: 'Sallow Eel', minDepth: 150, maxDepth: 285, price: 65, hp: 10, damage: 11, speed: 4.6, size: 2.8, color: 0x6d6450, belly: 0x9a8f78, infection: 0.32, aggressive: true, shape: 'eel', lore: 'Its skin comes away in sheets. Underneath, something red keeps moving.' , behavior: 'weave' },
+  { id: 'catfish', name: 'Weeping Catfish', minDepth: 230, maxDepth: 365, price: 115, hp: 15, damage: 17, speed: 4.2, size: 2.6, color: 0x4a3d36, belly: 0x86715e, infection: 0.5, aggressive: true, shape: 'flat', lore: 'Antoplasm has eaten through to the spine. It is still alive. It is still hungry.' , behavior: 'stalk' },
+  { id: 'gar', name: 'Hollow Gar', minDepth: 320, maxDepth: 455, price: 170, hp: 20, damage: 25, speed: 5.8, size: 3.3, color: 0x3c3a36, belly: 0x6e655a, infection: 0.68, aggressive: true, shape: 'long', lore: 'More ribcage than fish. The red mass inside it pulses when it sees your light.' , behavior: 'charge' },
+  { id: 'maw', name: 'Lantern Maw', minDepth: 400, maxDepth: 545, price: 300, hp: 26, damage: 35, speed: 5.0, size: 3.0, color: 0x241c1c, belly: 0x4a3434, infection: 0.82, aggressive: true, shape: 'angler', lore: 'The lure is not a light. It is a swollen knot of antoplasm, glowing.' , behavior: 'lure' },
+  { id: 'husk', name: 'Antoplasm Husk', minDepth: 480, maxDepth: 640, price: 460, hp: 36, damage: 46, speed: 6.2, size: 4.0, color: 0x1e1414, belly: 0x3a2020, infection: 1, aggressive: true, shape: 'long', lore: 'There is no fish left. Only bone, wrapped in something that learned how to swim.' , behavior: 'pack' },
   // Big game. Each one rolls healthy or infected when it spawns; the deeper, the likelier the rot.
   { id: 'carp', name: 'Grandfather Carp', minDepth: 12, maxDepth: 120, price: 85, hp: 8, damage: 0, speed: 2.4, size: 3.4, color: 0x8a6a2a, belly: 0xe0c070, infection: 0, aggressive: false, shape: 'deep', lore: 'Older than Teodor, maybe older than the town. Scales like brass coins.', large: true, weight: 0.3, features: ['barbels'] },
   { id: 'sturgeon', name: 'Lake Sturgeon', minDepth: 25, maxDepth: 170, price: 110, hp: 9, damage: 0, speed: 2.6, size: 4.2, color: 0x6b6458, belly: 0xcfc6b0, infection: 0, aggressive: false, shape: 'long', lore: 'An armoured relic, plated in rows of bony scutes. Gentle.', large: true, weight: 0.3, features: ['scutes', 'barbels'] },
   { id: 'muskie', name: 'Muskellunge', minDepth: 60, maxDepth: 220, price: 140, hp: 10, damage: 12, speed: 5.6, size: 3.6, color: 0x6f7a44, belly: 0xd8d2a8, infection: 0, aggressive: true, shape: 'long', lore: 'The fish of ten thousand casts. It strikes like a thrown knife.', large: true, weight: 0.3 , behavior: 'ambush' },
   { id: 'paddlefish', name: 'Paddlefish', minDepth: 110, maxDepth: 300, price: 210, hp: 12, damage: 0, speed: 3.0, size: 4.6, color: 0x5a6a78, belly: 0xc8d0d8, infection: 0, aggressive: false, shape: 'long', lore: 'A long flat paddle of a snout, sweeping the dark for food.', large: true, weight: 0.25, features: ['snout'] },
-  { id: 'wels', name: 'Wels Catfish', minDepth: 200, maxDepth: 400, price: 320, hp: 18, damage: 20, speed: 3.8, size: 5.8, color: 0x3e3a34, belly: 0x8a7e6a, infection: 0.2, aggressive: true, shape: 'flat', lore: 'Big enough to swallow a dog. The old men say it has swallowed worse.', large: true, weight: 0.25, features: ['barbels'] , behavior: 'stalk' },
-  { id: 'cathedral', name: 'Cathedral Sturgeon', minDepth: 380, maxDepth: 620, price: 850, hp: 30, damage: 40, speed: 3.6, size: 8, color: 0x2a2422, belly: 0x4a3a34, infection: 0.5, aggressive: true, shape: 'long', lore: 'Eight metres of plated bone. Its scutes are carved with the same patterns as the steps below.', large: true, weight: 0.2, features: ['scutes', 'barbels'] , behavior: 'charge' },
+  { id: 'wels', name: 'Wels Catfish', minDepth: 200, maxDepth: 400, price: 240, hp: 18, damage: 20, speed: 3.8, size: 5.8, color: 0x3e3a34, belly: 0x8a7e6a, infection: 0.2, aggressive: true, shape: 'flat', lore: 'Big enough to swallow a dog. The old men say it has swallowed worse.', large: true, weight: 0.25, features: ['barbels'] , behavior: 'stalk' },
+  { id: 'cathedral', name: 'Cathedral Sturgeon', minDepth: 380, maxDepth: 620, price: 560, hp: 30, damage: 40, speed: 3.6, size: 8, color: 0x2a2422, belly: 0x4a3a34, infection: 0.5, aggressive: true, shape: 'long', lore: 'Eight metres of plated bone. Its scutes are carved with the same patterns as the steps below.', large: true, weight: 0.2, features: ['scutes', 'barbels'] , behavior: 'charge' },
 ];
 
 const smoothstep = (a: number, b: number, v: number) => {
@@ -61,7 +61,7 @@ export function rollIndividual(sp: Species, depth: number): Species {
     damage: Math.max(sp.damage, Math.round((6 + 30 * inf) * Math.min(1.6, sp.size / 4))),
     aggressive: true,
     speed: sp.speed * (1 + inf * 0.35),
-    price: Math.round(sp.price * (1 + inf * 1.6)),
+    price: Math.round(sp.price * (1 + inf * 1.1)),
     lore: `${sp.lore} This one was rotting from the inside, antoplasm ${Math.round(inf * 100)}% through it.`,
   };
 }
@@ -96,11 +96,11 @@ export const HARPOON: HarpoonTier[] = [
 
 export const ARMOR: ArmorTier[] = [
   { cost: 0, label: 'Wetsuit', reduction: 0, rating: 90 },
-  { cost: 90, label: 'Neoprene Plate', reduction: 0.25, rating: 175 },
-  { cost: 360, label: 'Chainmail Suit', reduction: 0.42, rating: 275 },
-  { cost: 1300, label: 'Pressure Shell', reduction: 0.57, rating: 395 },
-  { cost: 4600, label: 'Atmospheric Hardsuit', reduction: 0.7, rating: 525 },
-  { cost: 14000, label: 'Leviathan Hardsuit', reduction: 0.82, rating: 700 },
+  { cost: 90, label: 'Neoprene Plate', reduction: 0.2, rating: 175 },
+  { cost: 360, label: 'Chainmail Suit', reduction: 0.33, rating: 275 },
+  { cost: 1300, label: 'Pressure Shell', reduction: 0.45, rating: 395 },
+  { cost: 4600, label: 'Atmospheric Hardsuit', reduction: 0.55, rating: 525 },
+  { cost: 14000, label: 'Leviathan Hardsuit', reduction: 0.65, rating: 700 },
 ];
 
 export const MAX_DEPTH = 620; // trench floor

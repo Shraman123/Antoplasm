@@ -840,9 +840,18 @@ function updateHud(dt: number) {
   }));
 }
 
+// QA: fast-forward runs the simulation several steps per rendered frame; a bot can steer each step.
+let timeScale = 1;
+let botStep: ((dt: number) => void) | null = null;
 function frame() {
   const dt = Math.min(0.05, clock.getDelta());
+  for (let i = 0; i < timeScale; i++) tick(dt);
+  renderer.render(scene, camera);
+  requestAnimationFrame(frame);
+}
+function tick(dt: number) {
   time += dt;
+  if (botStep && mode === 'play') botStep(dt);
   syncHarpoonLook();
   ventAir = mode === 'cutscene' || mode === 'ending' ? 0 : vents.update(dt, time, mode === 'play' ? camera.position : new THREE.Vector3(0, 1e4, 0));
   document.body.classList.toggle('on-title', mode === 'title');
@@ -894,8 +903,6 @@ function frame() {
   }
   shake = Math.max(0, shake - dt * 2);
   audio.update(dt, mode === 'cutscene' ? 650 : depthNow(), Math.max(air < 0.25 ? 1 - air * 4 : 0, hp < 40 ? 1 - hp / 40 : 0), camera.position.y > 0.05, mode === 'cutscene' || mode === 'ending');
-  renderer.render(scene, camera);
-  requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
 
@@ -972,5 +979,15 @@ document.addEventListener('visibilitychange', () => {
   vents,
   gun,
   freeze(on: boolean) { fishMgr.enabled = !on; },
+  keys,
+  set speed(n: number) { timeScale = Math.max(1, Math.floor(n)); },
+  set bot(fn: ((dt: number) => void) | null) { botStep = fn; },
+  trigger() { fire(); }, // a real trigger pull: respects reload, unlike fire()
+  get reloading() { return reloadT > 0 || spearState.active; },
+  get cargo() { return cargo.map((f) => ({ id: f.id, price: f.price })); },
+  get rating() { return tierA().rating; },
+  get airSeconds() { return airMax(); },
+  get fishList() { return fishMgr.fish.map((f) => ({ id: f.sp.id, x: f.root.position.x, y: f.root.position.y, z: f.root.position.z, r: f.radius, aggressive: f.sp.aggressive, state: f.state, hp: f.hp, price: f.sp.price })); },
+  bandage() { if (mode === 'play') useBandage(); },
   give(id: string) { const sp = SPECIES.find((s) => s.id === id)!; cargo.push(sp); },
 };
