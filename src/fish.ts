@@ -349,8 +349,8 @@ export class FishManager {
       if (sp.infection > 0.3 && Math.random() < sp.infection * 0.04) {
         f.vel.add(new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(sp.speed * 1.6));
       }
-      // Attacks snap to full speed; everything else eases.
-      const burst = f.state === 'dart' || f.state === 'charge' || f.state === 'lunge' || f.state === 'attack';
+      // Attacks snap to full speed, and a wind-up stops dead (so its aim line holds); everything else eases.
+      const burst = f.state === 'dart' || f.state === 'charge' || f.state === 'lunge' || f.state === 'attack' || f.state === 'tell';
       f.vel.lerp(desired.multiplyScalar(speed), Math.min(1, dt * (burst ? 7 : 1.6)));
       p.addScaledVector(f.vel, dt);
       const floor = floorY(p.x, p.z) + 0.8;
