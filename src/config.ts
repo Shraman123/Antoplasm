@@ -30,9 +30,9 @@ export const SPECIES: Species[] = [
   { id: 'pike', name: 'Lake Pike', minDepth: 90, maxDepth: 210, price: 38, hp: 5, damage: 7, speed: 5.2, size: 1.9, color: 0x55703c, belly: 0xc8c89a, infection: 0.18, aggressive: true, shape: 'long', lore: 'It bites. There are wet red patches where its scales have fallen out.' , behavior: 'ambush' },
   { id: 'eel', name: 'Sallow Eel', minDepth: 150, maxDepth: 285, price: 65, hp: 6, damage: 11, speed: 4.6, size: 2.8, color: 0x6d6450, belly: 0x9a8f78, infection: 0.32, aggressive: true, shape: 'eel', lore: 'Its skin comes away in sheets. Underneath, something red keeps moving.' , behavior: 'weave' },
   { id: 'catfish', name: 'Weeping Catfish', minDepth: 230, maxDepth: 365, price: 115, hp: 9, damage: 17, speed: 4.2, size: 2.6, color: 0x4a3d36, belly: 0x86715e, infection: 0.5, aggressive: true, shape: 'flat', lore: 'Antoplasm has eaten through to the spine. It is still alive. It is still hungry.' , behavior: 'stalk' },
-  { id: 'gar', name: 'Hollow Gar', minDepth: 320, maxDepth: 455, price: 195, hp: 12, damage: 25, speed: 5.8, size: 3.3, color: 0x3c3a36, belly: 0x6e655a, infection: 0.68, aggressive: true, shape: 'long', lore: 'More ribcage than fish. The red mass inside it pulses when it sees your light.' , behavior: 'charge' },
-  { id: 'maw', name: 'Lantern Maw', minDepth: 400, maxDepth: 545, price: 330, hp: 16, damage: 35, speed: 5.0, size: 3.0, color: 0x241c1c, belly: 0x4a3434, infection: 0.82, aggressive: true, shape: 'angler', lore: 'The lure is not a light. It is a swollen knot of antoplasm, glowing.' , behavior: 'lure' },
-  { id: 'husk', name: 'Antoplasm Husk', minDepth: 480, maxDepth: 640, price: 560, hp: 22, damage: 46, speed: 6.2, size: 4.0, color: 0x1e1414, belly: 0x3a2020, infection: 1, aggressive: true, shape: 'long', lore: 'There is no fish left. Only bone, wrapped in something that learned how to swim.' , behavior: 'pack' },
+  { id: 'gar', name: 'Hollow Gar', minDepth: 320, maxDepth: 455, price: 240, hp: 12, damage: 25, speed: 5.8, size: 3.3, color: 0x3c3a36, belly: 0x6e655a, infection: 0.68, aggressive: true, shape: 'long', lore: 'More ribcage than fish. The red mass inside it pulses when it sees your light.' , behavior: 'charge' },
+  { id: 'maw', name: 'Lantern Maw', minDepth: 400, maxDepth: 545, price: 440, hp: 16, damage: 35, speed: 5.0, size: 3.0, color: 0x241c1c, belly: 0x4a3434, infection: 0.82, aggressive: true, shape: 'angler', lore: 'The lure is not a light. It is a swollen knot of antoplasm, glowing.' , behavior: 'lure' },
+  { id: 'husk', name: 'Antoplasm Husk', minDepth: 480, maxDepth: 640, price: 720, hp: 22, damage: 46, speed: 6.2, size: 4.0, color: 0x1e1414, belly: 0x3a2020, infection: 1, aggressive: true, shape: 'long', lore: 'There is no fish left. Only bone, wrapped in something that learned how to swim.' , behavior: 'pack' },
   // Big game. Each one rolls healthy or infected when it spawns; the deeper, the likelier the rot.
   { id: 'carp', name: 'Grandfather Carp', minDepth: 12, maxDepth: 120, price: 85, hp: 8, damage: 0, speed: 2.4, size: 3.4, color: 0x8a6a2a, belly: 0xe0c070, infection: 0, aggressive: false, shape: 'deep', lore: 'Older than Teodor, maybe older than the town. Scales like brass coins.', large: true, weight: 0.3, features: ['barbels'] },
   { id: 'sturgeon', name: 'Lake Sturgeon', minDepth: 25, maxDepth: 170, price: 110, hp: 9, damage: 0, speed: 2.6, size: 4.2, color: 0x6b6458, belly: 0xcfc6b0, infection: 0, aggressive: false, shape: 'long', lore: 'An armoured relic, plated in rows of bony scutes. Gentle.', large: true, weight: 0.3, features: ['scutes', 'barbels'] },
@@ -73,34 +73,34 @@ export interface ArmorTier extends Tier { reduction: number; rating: number }
 
 export const AIR: AirTier[] = [
   { cost: 0, label: 'Rental Tank', seconds: 50 },
-  { cost: 45, label: 'Steel 12L', seconds: 80 },
-  { cost: 140, label: 'Twin 15L', seconds: 120 },
-  { cost: 340, label: 'Rebreather', seconds: 175 },
-  { cost: 750, label: 'Closed-Circuit Rig', seconds: 250 },
-  { cost: 1500, label: 'Abyssal Lung', seconds: 360 },
+  { cost: 60, label: 'Steel 12L', seconds: 80 },
+  { cost: 240, label: 'Twin 15L', seconds: 120 },
+  { cost: 800, label: 'Rebreather', seconds: 175 },
+  { cost: 2600, label: 'Closed-Circuit Rig', seconds: 250 },
+  { cost: 6500, label: 'Abyssal Lung', seconds: 360 },
 ];
 
 export const HARPOON: HarpoonTier[] = [
   { cost: 0, label: 'Sling Spear', damage: 1, reload: 0.6, speed: 55 },
-  { cost: 55, label: 'Band Gun', damage: 2, reload: 0.5, speed: 65 },
-  { cost: 110, label: 'Twin-Band Gun', damage: 3, reload: 0.48, speed: 72 },
-  { cost: 200, label: 'Pneumatic Gun', damage: 4, reload: 0.42, speed: 80 },
-  { cost: 380, label: 'Barbed Railgun', damage: 5, reload: 0.34, speed: 90 },
-  { cost: 560, label: 'Long Rail', damage: 7, reload: 0.32, speed: 100 },
-  { cost: 820, label: 'Powerhead', damage: 9, reload: 0.27, speed: 108 },
-  { cost: 1150, label: 'Gas Lance', damage: 11, reload: 0.25, speed: 118 },
-  { cost: 1650, label: 'Bone Splitter', damage: 13, reload: 0.2, speed: 125 },
+  { cost: 60, label: 'Band Gun', damage: 2, reload: 0.5, speed: 65 },
+  { cost: 160, label: 'Twin-Band Gun', damage: 3, reload: 0.48, speed: 72 },
+  { cost: 350, label: 'Pneumatic Gun', damage: 4, reload: 0.42, speed: 80 },
+  { cost: 700, label: 'Barbed Railgun', damage: 5, reload: 0.34, speed: 90 },
+  { cost: 1200, label: 'Long Rail', damage: 7, reload: 0.32, speed: 100 },
+  { cost: 1900, label: 'Powerhead', damage: 9, reload: 0.27, speed: 108 },
+  { cost: 3000, label: 'Gas Lance', damage: 11, reload: 0.25, speed: 118 },
+  { cost: 4600, label: 'Bone Splitter', damage: 13, reload: 0.2, speed: 125 },
   // Shotgun: a cone of barbed flechettes, deadly up close, falls off past ~30 m.
-  { cost: 2400, label: 'Antoplasm Scattergun', damage: 10, reload: 1.0, speed: 95, pellets: 10, spread: 0.16, range: 34 },
+  { cost: 7000, label: 'Antoplasm Scattergun', damage: 10, reload: 1.0, speed: 95, pellets: 10, spread: 0.16, range: 34 },
 ];
 
 export const ARMOR: ArmorTier[] = [
   { cost: 0, label: 'Wetsuit', reduction: 0, rating: 90 },
-  { cost: 60, label: 'Neoprene Plate', reduction: 0.25, rating: 175 },
-  { cost: 180, label: 'Chainmail Suit', reduction: 0.42, rating: 275 },
-  { cost: 420, label: 'Pressure Shell', reduction: 0.57, rating: 395 },
-  { cost: 900, label: 'Atmospheric Hardsuit', reduction: 0.7, rating: 525 },
-  { cost: 1800, label: 'Leviathan Hardsuit', reduction: 0.82, rating: 700 },
+  { cost: 90, label: 'Neoprene Plate', reduction: 0.25, rating: 175 },
+  { cost: 360, label: 'Chainmail Suit', reduction: 0.42, rating: 275 },
+  { cost: 1300, label: 'Pressure Shell', reduction: 0.57, rating: 395 },
+  { cost: 4600, label: 'Atmospheric Hardsuit', reduction: 0.7, rating: 525 },
+  { cost: 14000, label: 'Leviathan Hardsuit', reduction: 0.82, rating: 700 },
 ];
 
 export const MAX_DEPTH = 620; // trench floor

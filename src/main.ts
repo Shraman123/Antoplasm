@@ -346,7 +346,7 @@ addEventListener('keydown', (e) => {
   if (e.code === 'KeyM') audio.muted = !audio.muted;
   if (e.code === 'KeyH' && mode === 'play') useBandage();
   if (e.code === 'KeyE') {
-    if (mode === 'play' && nearBoat()) openShop();
+    if (mode === 'play') shopHere();
     else if (mode === 'shop') closeShop();
   }
   if (e.code === 'Space' || e.code === 'ControlLeft') e.preventDefault();
@@ -509,6 +509,34 @@ function useBandage() {
 
 // ---------- Shop ----------
 const nearBoat = () => Math.hypot(camera.position.x - BOAT_POS.x, camera.position.z - BOAT_POS.z) < 15 && camera.position.y > -2.5;
+// Teodor's skiff: once you've been deep, surface anywhere and he comes to you. The deep water is
+// ~230 m out from the jetty; without this every deep dive starts and ends with a long empty swim.
+const SKIFF_DEPTH = 150;
+const SKIFF_LOG = 10007;
+const skiffReady = () => save.maxDepth >= SKIFF_DEPTH;
+const canCallSkiff = () => skiffReady() && camera.position.y > -2.5 && !nearBoat();
+const canShop = () => nearBoat() || canCallSkiff();
+let skiffT = 0;
+function callSkiff() {
+  if (mode !== 'play' || skiffT > 0) return;
+  skiffT = 1.4;
+  mode = 'paused'; // hold still while he rows over
+  ui.fade.style.transition = 'opacity 0.5s';
+  ui.fade.style.opacity = '0.85';
+  audio.splash();
+  setTimeout(() => {
+    ui.fade.style.opacity = '0';
+    mode = 'play';
+    skiffT = 0;
+    openShop();
+    toast('Teodor rows out to meet you.');
+  }, 900);
+}
+function shopHere() {
+  if (mode !== 'play') return;
+  if (nearBoat()) openShop();
+  else if (canCallSkiff()) callSkiff();
+}
 
 function teodorLine() {
   const d = save.maxDepth;
@@ -750,6 +778,13 @@ function updatePlayer(dt: number) {
     return;
   }
 
+  // Teodor's outboard: announced the first time you surface after going deep enough.
+  if (skiffReady() && !save.logs.includes(SKIFF_LOG) && camera.position.y > -2.5 && !nearBoat()) {
+    save.logs.push(SKIFF_LOG);
+    persist();
+    showLog(`RADIO: "Got the old outboard running. Surface anywhere and I'll come to you — ${TOUCH ? 'tap SHOP' : 'press E'}."`, 9);
+  }
+
   for (const log of DEPTH_LOGS) {
     if (depth >= log.depth && !save.logs.includes(log.depth)) {
       save.logs.push(log.depth);
@@ -780,11 +815,12 @@ function updateHud(dt: number) {
   ui.bandages.textContent = `Bandages: ${save.bandages}${save.bandages && hp < 100 ? ' · H to use' : ''}`;
   const vent = vents.active;
   const ventHint = vent ? (vents.reserveOf(vent) > 0.02 ? `Breathing vent gas — reserve ${Math.round(vents.reserveOf(vent) * 100)}%` : 'Vent spent — it needs time to recover') : '';
-  const hint = nearBoat() ? (TOUCH ? "Tap SHOP — Teodor's boat (sell & upgrade)" : "Press E — Teodor's boat (sell & upgrade)") : ventHint ? ventHint : air < 0.25 && depth > 2 ? 'Air low — surface!' : '';
+  const shopHint = nearBoat() ? "Teodor's boat (sell & upgrade)" : canCallSkiff() ? "call Teodor's skiff (sell & upgrade)" : '';
+  const hint = shopHint ? `${TOUCH ? 'Tap SHOP' : 'Press E'} — ${shopHint}` : ventHint ? ventHint : air < 0.25 && depth > 2 ? 'Air low — surface!' : '';
   ui.hint.textContent = hint;
   ui.hint.classList.toggle('show', !!hint);
   if (touch) {
-    touch.setShopAvailable(nearBoat());
+    touch.setShopAvailable(canShop());
     touch.setBandages(save.bandages);
   }
   ui.vignette.style.setProperty('--v', String(0.25 + Math.min(1, depth / 550) * 0.7 + (air < 0.25 ? 0.2 : 0)));
@@ -872,7 +908,7 @@ function pauseGame() {
 touch = TOUCH
   ? new TouchControls(keys, {
       onBandage: () => mode === 'play' && useBandage(),
-      onShop: () => mode === 'play' && nearBoat() && openShop(),
+      onShop: () => shopHere(),
       onPause: pauseGame,
     })
   : null;
