@@ -10,6 +10,8 @@ const TEODOR_KNOWS = 10006;
 import { BubbleTrail, buildFlechette, buildSpear, HarpoonGun } from './harpoon';
 import { isTouchDevice, TouchControls } from './touch';
 import { Vents } from './vents';
+import { ACHIEVEMENTS, Achievement, Achievements, renderAchievements } from './achievements';
+import { loadProfile, mergeProfiles, sanitizeProfile, storeProfile } from './profile';
 import { floorY, World, zoneName } from './world';
 
 // ---------- DOM ----------
@@ -60,9 +62,16 @@ try {
     hasSave = true;
   }
 } catch { /* storage unavailable: play without saving */ }
+// Lifetime record (achievements, bests): survives the ending's wipe and "New Game".
+const profile = loadProfile();
 const persist = () => {
   try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch { /* ignore */ }
+  storeProfile(profile);
 };
+const ach = new Achievements(profile, (a) => {
+  achToast(a);
+  storeProfile(profile);
+});
 const wipe = () => {
   try { localStorage.removeItem(SAVE_KEY); } catch { /* ignore */ }
 };
@@ -145,6 +154,7 @@ let hp = 100;
 let reloadT = 0;
 let shake = 0;
 let damageFlash = 0;
+let diveMinAir = 1;
 let cargo: Species[] = [];
 const spearState = { active: false, vel: new THREE.Vector3(), travelled: 0, prev: new THREE.Vector3() };
 
@@ -160,6 +170,7 @@ function spawnAtBoat() {
   vel.set(0, 0, 0);
   air = 1;
   hp = 100;
+  diveMinAir = 1;
 }
 spawnAtBoat();
 
@@ -182,6 +193,7 @@ const horror = new HorrorEvents({
   seen: (id) => save.logs.includes(id),
   mark: (id) => {
     save.logs.push(id);
+    if (Object.values(EVENT_IDS).every((e) => save.logs.includes(e))) ach.unlock('all_scares');
     persist();
   },
   log: (text, secs) => showLog(text, secs),
@@ -212,6 +224,42 @@ function toast(html: string, infected = false) {
   setTimeout(() => el.remove(), 3600);
   while (ui.toasts.children.length > 4) ui.toasts.firstChild!.remove();
 }
+
+function achToast(a: Achievement) {
+  const el = document.createElement('div');
+  el.className = 'toast ach';
+  el.innerHTML = `<span class="ach-icon">${a.icon}</span><div><small>Achievement unlocked</small><b>${a.name}</b></div>`;
+  ui.toasts.appendChild(el);
+  setTimeout(() => el.remove(), 5200);
+  audio.achievement();
+  updateAchButtons();
+}
+const achProgress = (id: string) =>
+  ({
+    catch_50: profile.totalCaught,
+    catch_200: profile.totalCaught,
+    journal_all: save.journal.length,
+    earn_10k: profile.totalEarned,
+    all_scares: Object.values(EVENT_IDS).filter((e) => save.logs.includes(e)).length,
+  })[id] ?? 0;
+function updateAchButtons() {
+  const label = `Achievements ${ach.count}/${ACHIEVEMENTS.length}`;
+  $('btn-ach-title').textContent = label;
+  $('btn-ach-pause').textContent = label;
+}
+function openAchievements() {
+  renderAchievements($('ach-list'), profile.achievements, achProgress);
+  $('ach-count').textContent = `${ach.count} of ${ACHIEVEMENTS.length} unlocked`;
+  ui.pause.classList.add('hidden');
+  $('achievements').classList.remove('hidden');
+}
+$('btn-ach-title').onclick = openAchievements;
+$('btn-ach-pause').onclick = openAchievements;
+$('btn-ach-back').onclick = () => {
+  $('achievements').classList.add('hidden');
+  if (mode === 'paused') ui.pause.classList.remove('hidden');
+};
+updateAchButtons();
 
 // ---------- Harpoon ----------
 function fire() {
@@ -330,8 +378,16 @@ function catchFish(f: Fish) {
   fishMgr.remove(f);
   cargo.push(sp);
   save.caught++;
+  profile.totalCaught++;
   const first = !save.journal.includes(sp.id);
   if (first) save.journal.push(sp.id);
+  ach.unlock('first_catch');
+  if (profile.totalCaught >= 50) ach.unlock('catch_50');
+  if (profile.totalCaught >= 200) ach.unlock('catch_200');
+  if (save.journal.length >= SPECIES.length) ach.unlock('journal_all');
+  if (sp.large) ach.unlock('big_game');
+  if (sp.large && sp.name.startsWith('Infected')) ach.unlock('rotten_trophy');
+  if (sp.id === 'cathedral') ach.unlock('cathedral');
   const inf = sp.infection >= 0.15;
   toast(`+ ${sp.name} <b>$${sp.price}</b>${first ? `<small>${sp.lore}</small>` : ''}`, inf);
   if (inf) audio.catchInfected(sp.infection);
@@ -397,7 +453,7 @@ const say = (text: string, kind: 'ok' | 'err' | '' = '') => {
 };
 function openSaveCode() {
   persist();
-  codeOut.value = encodeSave(save);
+  codeOut.value = encodeSave({ ...save, profile });
   codeIn.value = '';
   say('');
   ui.pause.classList.add('hidden');
@@ -423,7 +479,9 @@ $('btn-code-load').onclick = () => {
   const r = decodeSave(codeIn.value);
   if (!r.ok) return say(r.error, 'err');
   try {
-    localStorage.setItem(SAVE_KEY, JSON.stringify(r.save));
+    const { profile: carried, ...run } = r.save;
+    localStorage.setItem(SAVE_KEY, JSON.stringify(run));
+    if (carried) storeProfile(mergeProfiles(profile, sanitizeProfile(carried)));
   } catch {
     return say("This browser won't let the game save (private browsing?).", 'err');
   }
@@ -502,6 +560,7 @@ function useBandage() {
   if (hp >= 100) return toast('Already at full health');
   save.bandages--;
   hp = Math.min(100, hp + BANDAGE_HEAL);
+  ach.unlock('bandage');
   audio.bandage();
   toast(`Bandaged +${BANDAGE_HEAL}% health <small>${save.bandages} left</small>`);
   persist();
@@ -520,6 +579,7 @@ let skiffT = 0;
 function callSkiff() {
   if (mode !== 'play' || skiffT > 0) return;
   skiffT = 1.4;
+  ach.unlock('skiff');
   mode = 'paused'; // hold still while he rows over
   ui.fade.style.transition = 'opacity 0.5s';
   ui.fade.style.opacity = '0.85';
@@ -572,6 +632,8 @@ function sellAll() {
   const total = cargo.reduce((s, f) => s + f.price, 0);
   save.money += total;
   save.earned += total;
+  profile.totalEarned += total;
+  if (profile.totalEarned >= 10000) ach.unlock('earn_10k');
   cargo = [];
   audio.sell();
   persist();
@@ -633,6 +695,8 @@ function renderShop() {
         if (save.money < next.cost) return;
         save.money -= next.cost;
         (save[key] as number) = cur + 1;
+        if (key === 'harpoon' && HARPOON[cur + 1].pellets) ach.unlock('scattergun');
+        if (save.air === AIR.length - 1 && save.harpoon === HARPOON.length - 1 && save.armor === ARMOR.length - 1) ach.unlock('fully_kitted');
         audio.buy();
         persist();
         renderShop();
@@ -654,6 +718,7 @@ function die(reason: string) {
   const lost = cargo.length;
   cargo = [];
   save.deaths++;
+  ach.unlock(reason.includes('drowned') ? 'die_drown' : reason.includes('pressure') ? 'die_pressure' : 'die_eaten');
   persist();
   endSpear();
   $('dead-title').textContent = reason;
@@ -696,6 +761,12 @@ const cutscene = new Cutscene(scene, camera, world, audio, {
     ].map(([k, v]) => `<div><span>${k}</span><b>${v}</b></div>`).join('');
     ui.ending.classList.remove('hidden');
     document.title = 'ANTOPLASM';
+    profile.endings++;
+    profile.bestEnding = profile.bestEnding === null ? save.playTime : Math.min(profile.bestEnding, save.playTime);
+    ach.unlock('ending');
+    if (save.deaths === 0) ach.unlock('no_deaths');
+    if (save.playTime < 40 * 60) ach.unlock('speedrun');
+    storeProfile(profile);
     wipe();
   },
 });
@@ -748,6 +819,13 @@ function updatePlayer(dt: number) {
 
   const depth = depthNow();
   save.maxDepth = Math.max(save.maxDepth, depth);
+  profile.deepest = Math.max(profile.deepest, depth);
+  for (const d of [100, 250, 400, 550]) if (depth >= d) ach.unlock(`depth_${d}`);
+  // Close call: track the lowest air on this dive, judge it when you break the surface.
+  if (above) {
+    if (diveMinAir < 0.05) ach.unlock('close_call');
+    diveMinAir = 1;
+  } else diveMinAir = Math.min(diveMinAir, air);
   if (above) {
     air = Math.min(1, air + dt * 0.5);
     hp = Math.min(100, hp + dt * 6);
@@ -755,6 +833,7 @@ function updatePlayer(dt: number) {
     air -= (dt * (1 + depth / 350) * (sprint ? 1.5 : 1)) / airMax();
     if (ventAir > 0) {
       air = Math.min(1, air + ventAir / airMax());
+      ach.unlock('vent');
       if (!save.logs.includes(9999)) {
         save.logs.push(9999);
         showLog("The vent's bubbles are breathable. Warm. They taste of iron, and something sweeter.");
@@ -936,6 +1015,8 @@ document.addEventListener('visibilitychange', () => {
   get save() { return save; },
   get fish() { return fishMgr.fish.length; },
   get hp() { return hp; },
+  get profile() { return profile; },
+  unlock: (id: string) => ach.unlock(id),
   get air() { return air; },
   get fov() { return camera.fov; },
   teleport(depth: number, x = 0, z = 0) {

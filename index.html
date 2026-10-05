@@ -60,6 +60,7 @@
         <div class="buttons">
           <button id="btn-start">Start Fishing</button>
           <button id="btn-new" class="ghost hidden">New Game</button>
+          <button id="btn-ach-title" class="ghost">Achievements</button>
           <button id="btn-code-title" class="ghost">Save code</button>
           <button id="btn-install" class="ghost hidden">Install app</button>
         </div>
@@ -88,6 +89,7 @@
       <div class="panel">
         <h2>Paused</h2>
         <button id="btn-resume">Resume</button>
+        <button id="btn-ach-pause" class="ghost">Achievements</button>
         <button id="btn-code-pause" class="ghost">Save code</button>
       </div>
     </div>
@@ -103,6 +105,15 @@
         <p id="code-msg" class="code-msg"></p>
         <button id="btn-code-load" class="ghost">Load (replaces this save)</button>
         <button id="btn-code-back" class="ghost">Back</button>
+      </div>
+    </div>
+
+    <div id="achievements" class="screen hidden">
+      <div class="panel ach-panel">
+        <h2>Achievements</h2>
+        <p id="ach-count" class="code-help"></p>
+        <ul id="ach-list"></ul>
+        <button id="btn-ach-back" class="ghost">Back</button>
       </div>
     </div>
 

@@ -188,6 +188,9 @@ export class Audio {
   buy() {
     [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => this.tone(f, 0.35, 0.15, 'triangle'), i * 70));
   }
+  achievement() {
+    [784, 988, 1175, 1568].forEach((f, i) => setTimeout(() => this.tone(f, 0.6, 0.12, 'triangle', this.calm), i * 110));
+  }
   sell() {
     [880, 1175].forEach((f, i) => setTimeout(() => this.tone(f, 0.25, 0.15, 'sine'), i * 80));
   }

@@ -213,10 +213,12 @@ while (true) {
     console.log(`${s}  (real ${((Date.now() - t0) / 1000) | 0}s)`);
   }
 }
-const final = await page.evaluate(() => ({ save: { ...window.__game.save, logs: window.__game.save.logs.length }, bot: window.__bot.stats, events: window.__bot.events }));
+if (result === 'ending') await page.waitForFunction(() => window.__game.mode === 'ending', null, { timeout: 120000 }).catch(() => {});
+const final = await page.evaluate(() => ({ achievements: window.__game.profile.achievements, save: { ...window.__game.save, logs: window.__game.save.logs.length }, bot: window.__bot.stats, events: window.__bot.events }));
 console.log('\nRESULT:', result);
 console.log('save:', JSON.stringify(final.save));
 console.log('bot:', JSON.stringify(final.bot));
+console.log('achievements:', final.achievements.length, final.achievements.join(' '));
 console.log('\nDEATHS:\n' + (deaths.join('\n') || 'none'));
 console.log('\nTIMELINE:\n' + final.events.join('\n'));
 console.log(errs.length ? '\nPAGE ERRORS:\n' + errs.join('\n') : '\nno page errors');
