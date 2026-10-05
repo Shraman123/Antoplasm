@@ -1005,7 +1005,7 @@ function tick(dt: number) {
   // In co-op the lake never pauses for one player: the host keeps the fish going from the shop too.
   const coopLive = coop.active && mode !== 'cutscene' && mode !== 'ending';
   fishMgr.updateAll(playing || mode === 'cutscene' || coopLive ? dt : 0, time, divers());
-  if (coop.active) netTick(dt);
+  if (coop.active) netTick();
   remote.update(dt, time);
   remote.updateTracers(dt);
   if (!manualCut) cutscene.update(dt);
@@ -1060,6 +1060,12 @@ document.addEventListener('visibilitychange', () => {
 // ---------- Online: accounts, cloud saves, co-op ----------
 const localId = () => (coop.active ? account.userId ?? 'local' : 'local');
 const remote = new RemoteDivers(scene);
+let compiling = false;
+remote.onNewAvatar = () => {
+  if (compiling) return;
+  compiling = true;
+  queueMicrotask(() => void renderer.compileAsync(scene, camera).catch(() => {}).finally(() => (compiling = false)));
+};
 let pendingSpawns: FishSpawn[] = [];
 const pendingHits = new Map<string, number>();
 let netT = 0;
@@ -1081,20 +1087,21 @@ function sendShot(o: THREE.Vector3, d: THREE.Vector3) {
   const r = (v: number) => Math.round(v * 100) / 100;
   coop.send('shot', { id: localId(), o: [r(o.x), r(o.y), r(o.z)], d: [r(d.x), r(d.y), r(d.z)], tier: save.harpoon });
 }
-function netTick(dt: number) {
+// Send rates run on wall-clock time: game time is capped per frame, so on a slow device a
+// game-time clock would send far less often than 8×/s and the others would see it stutter.
+function netTick() {
   coop.live = myState().live;
-  netT += dt;
-  fishNetT += dt;
-  if (netT >= 1 / 8) {
-    netT = 0;
+  const now = performance.now();
+  if (now - netT >= 125) {
+    netT = now;
     coop.send('p', { id: localId(), s: myState() });
     if (pendingHits.size) {
       coop.send('hit', { hits: [...pendingHits.entries()], by: localId() });
       pendingHits.clear();
     }
   }
-  if (coop.isHost && fishNetT >= 0.2) {
-    fishNetT = 0;
+  if (coop.isHost && now - fishNetT >= 200) {
+    fishNetT = now;
     if (pendingSpawns.length) coop.send('spawn', { list: pendingSpawns.splice(0) });
     coop.send('fs', { rows: fishMgr.snapshot() });
   }

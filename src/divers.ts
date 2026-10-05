@@ -86,6 +86,9 @@ export class RemoteDivers {
   private avatars = new Map<string, Avatar>();
   private group = new THREE.Group();
 
+  /** Called after avatars are added, so the game can pre-compile their materials. */
+  onNewAvatar?: () => void;
+
   constructor(scene: THREE.Scene) {
     scene.add(this.group);
   }
@@ -105,8 +108,11 @@ export class RemoteDivers {
       const tag = nameTag(p.name, p.color);
       tag.position.set(0, 1.1, 0);
       d.root.add(tag);
-      d.root.visible = false;
+      // Parked far below the lake (visible, so the renderer compiles its shaders now rather than
+      // with a hitch the first time this diver swims into view) until their first update arrives.
+      d.root.position.set(0, -10000, 0);
       this.group.add(d.root);
+      this.onNewAvatar?.();
       this.avatars.set(p.id, { ...d, tag, buf: a?.buf ?? [], name: p.name, color: p.color, shown: null });
     }
   }

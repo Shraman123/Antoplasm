@@ -92,12 +92,15 @@ const key = await g(a, () => window.__game.spawnAt('bluegill', 24, -30, 112));
 await sleep(1200);
 const bHas = await g(b, (k) => window.__game.fishes.length && window.__game.fishList.some(() => true), key);
 check(bHas, 'a fish the host spawns appears for the others');
-const fishPosB = await g(b, () => window.__game.fishList[0]);
-check(fishPosB && Math.hypot(fishPosB.x - 24, fishPosB.z - 112) < 4, 'and in the same place');
+const [fishPosA, fishPosB] = await Promise.all([g(a, () => window.__game.fishList[0]), g(b, () => window.__game.fishList[0])]);
+const drift = fishPosA && fishPosB ? Math.hypot(fishPosA.x - fishPosB.x, fishPosA.y - fishPosB.y, fishPosA.z - fishPosB.z) : 99;
+check(drift < 3, `and in the same place (${drift.toFixed(2)} m apart)`);
 
 // Bo spears it: the host decides, Bo gets the fish, it vanishes for everyone.
-await g(b, () => { const gm = window.__game; gm.place(24, -30, 120, 0, 0); gm.trigger(); });
-await sleep(2500);
+for (let i = 0; i < 4 && (await g(b, () => window.__game.cargoCount)) < 1; i++) {
+  await shootNearest(b);
+  await sleep(1500);
+}
 check(await g(b, () => window.__game.cargoCount) === 1, "the shooter's catch lands in their own net");
 check(await g(a, () => window.__game.cargoCount) === 0, 'the host does not get it');
 check(await g(c, () => window.__game.fishList.length) === 0 && (await g(a, () => window.__game.fishList.length)) === 0, 'the caught fish is gone for everyone');
