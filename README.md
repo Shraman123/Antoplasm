@@ -18,8 +18,20 @@ WASD swim · mouse look · click fire · Space/C up/down · Shift sprint · E bo
 
 **Touch:** left-side floating stick to swim, drag the right side to look, hold FIRE, plus up/down/sprint/bandage/pause/SHOP buttons. Works in portrait and landscape. Add `?touch=1` to force touch controls on desktop.
 
+## Online (optional)
+With a Supabase project configured (see [docs/ONLINE.md](docs/ONLINE.md)) the title screen gets an **Online** button:
+- **Accounts:** Google sign-in. Guests can always play without one. Signed-in progress syncs to the cloud. Achievements and best stats merge across devices, and if two devices both played, you choose which run to keep.
+- **Leaderboards:** deepest dive, fastest to the bottom, fish caught, money earned and achievements. Each one can show everyone or friends only.
+- **Friends:** add each other with a 6-character code, see who's online, and join their room in one click.
+- **Co-op:** rooms of up to 4 divers, joined by code or invite link. Everyone keeps their own gear and money. The fish are shared (one player's game hosts them and hands over automatically if that player leaves), and whoever lands the killing shot keeps the catch.
+
+Without the env vars the build is the original offline game.
+
+## Achievements
+30 achievements (25 offline, 5 online), some of them secret. They're unlocked by real play, shown as toasts, and listed with progress bars under **Achievements** on the title and pause screens. They're kept in a lifetime profile that survives *Dive again* and *New Game*, travels in save codes and syncs to your account.
+
 ## Saves
-Progress saves in the browser (localStorage) on every sell, purchase, death and pause. Nothing is sent to a server, and there's no login.
+Progress saves in the browser (localStorage) on every sell, purchase, death and pause. Signed-in players' saves also sync to their account (see above).
 
 - **Save code:** Pause → *Save code* (or the button on the title screen) shows the whole save as a copyable code. Paste it on another device to carry progress over. Codes carry a checksum, so a partial paste is rejected.
 - **Persistent storage:** the game asks the browser (`navigator.storage.persist()`) not to evict its data.
@@ -48,4 +60,4 @@ Progress saves in the browser (localStorage) on every sell, purchase, death and 
 - Balance lives in `src/config.ts`.
 
 ## QA
-`npm run dev`, then `node scripts/qa.mjs` (zones + shop + ending), `node scripts/fishqa.mjs` (species close-ups), `node scripts/cutqa.mjs` (deterministic cutscene stills), `node scripts/mobileqa.mjs` (touch; `QA_PORTRAIT=1` for portrait), `node scripts/saveqa.mjs` (save codes, offline, install; run against `npx vite preview --port 4173`). `node scripts/gfxqa.mjs <dir>` (one still + FPS per depth zone, for before/after comparisons). `node scripts/behaviorqa.mjs`, `scareqa.mjs` and `skiffqa.mjs` check the hunters, scripted events and skiff. `node scripts/balancesim.mjs` simulates a full run with the real balance tables and prints the upgrade timeline (an efficient run currently takes about 54 min over 27 dives, and you're never more than 2 dives from the next upgrade). `node scripts/icons.mjs` regenerates the app icons. Debug hooks are on `window.__game`.
+`npm run dev`, then `node scripts/qa.mjs` (zones + shop + ending), `node scripts/fishqa.mjs` (species close-ups), `node scripts/cutqa.mjs` (deterministic cutscene stills), `node scripts/mobileqa.mjs` (touch; `QA_PORTRAIT=1` for portrait), `node scripts/saveqa.mjs` (save codes, offline, install; run against `npx vite preview --port 4173`). `node scripts/gfxqa.mjs <dir>` (one still + FPS per depth zone, for before/after comparisons). `node scripts/behaviorqa.mjs`, `scareqa.mjs` and `skiffqa.mjs` check the hunters, scripted events and skiff. `node scripts/botplay.mjs` plays a fresh save to the ending in the real engine using only player controls, fast-forwarded (`QA_SPEED`). By default it plays like a human (fog-limited sight, view cone, reaction delay, aim wobble); `QA_SKILL=pro` makes it play perfectly. It prints the upgrade timeline, damage taken by zone, income by species and the achievements earned. An average bot currently takes about 29 game-minutes. `balancesim.mjs` is the older analytic estimate, and it's less reliable than the bot. `achqa.mjs` covers achievements. For online features, see docs/ONLINE.md (`supabase test db`, `onlineqa.mjs`, `coopqa.mjs`). `node scripts/icons.mjs` regenerates the app icons. Debug hooks are on `window.__game`.

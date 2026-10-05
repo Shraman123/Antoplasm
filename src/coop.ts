@@ -53,6 +53,8 @@ export class Coop {
   hostId: string | null = null;
   private ch: RealtimeChannel | null = null;
   private joinedAt = 0;
+  /** Host flag last reported to the game (null = not reported since joining). */
+  private reportedHost: boolean | null = null;
   private hostTimer: ReturnType<typeof setInterval> | null = null;
   /** Is our own game live (playing, not paused/backgrounded)? Set by the game. */
   live = false;
@@ -70,6 +72,7 @@ export class Coop {
     const { id, name } = this.me();
     this.code = cleanRoomCode(code);
     this.joinedAt = Date.now();
+    this.reportedHost = null;
     const ch = sb.channel(`room:${this.code}`, { config: { private: true, broadcast: { self: false, ack: false }, presence: { key: id } } });
     this.ch = ch;
 
@@ -128,11 +131,10 @@ export class Coop {
       void ch.untrack().catch(() => {});
       void sb?.removeChannel(ch);
     }
-    const wasHost = this.hostId === this.me().id;
     this.peers.clear();
     this.hostId = null;
     this.code = '';
-    if (wasHost) this.hooks.hostChanged(false);
+    this.reportedHost = null;
     this.hooks.peersChanged([], null);
   }
 
@@ -154,6 +156,7 @@ export class Coop {
     // Colours by join order, so everyone sees the same diver in the same colour.
     [...this.peers.values()].sort((a, b) => a.joinedAt - b.joinedAt || a.id.localeCompare(b.id)).forEach((p, i) => (p.color = COLORS[i % COLORS.length]));
     this.electHost();
+    this.hooks.peersChanged([...this.peers.values()], this.hostId);
   }
 
   /** Everyone runs the same rule on the same data, so they agree without talking about it. */
@@ -165,11 +168,15 @@ export class Coop {
     candidates.sort((a, b) => a.joinedAt - b.joinedAt || a.id.localeCompare(b.id));
     // Nobody live (everyone paused): keep the current host rather than flapping.
     const next = candidates[0]?.id ?? this.hostId;
-    const wasHost = this.hostId === me;
     const changed = next !== this.hostId;
     this.hostId = next;
     if (changed) this.hooks.peersChanged([...this.peers.values()], this.hostId);
-    if ((next === me) !== wasHost) this.hooks.hostChanged(next === me);
+    // Report our role on the first election after joining too, not only on changes.
+    const isHost = next === me;
+    if (isHost !== this.reportedHost) {
+      this.reportedHost = isHost;
+      this.hooks.hostChanged(isHost);
+    }
   }
 }
 
@@ -200,6 +207,7 @@ export class Lobby {
 
   /** Update our name/room for friends to see. */
   set(name: string, room: string) {
+    if (name === this.meta.name && room === this.meta.room) return;
     this.meta = { name, room };
     void this.ch?.track(this.meta);
   }

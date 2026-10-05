@@ -826,6 +826,7 @@ const clock = new THREE.Clock();
 const lookDir = new THREE.Vector3();
 let time = 0;
 let lastDepthShown = -1;
+let hudNetT = 0;
 
 function updatePlayer(dt: number) {
   const pos = camera.position;
@@ -938,6 +939,11 @@ function updateHud(dt: number) {
   if (touch) {
     touch.setShopAvailable(canShop());
     touch.setBandages(save.bandages);
+  }
+  hudNetT -= dt;
+  if (hudNetT <= 0) {
+    hudNetT = 0.25;
+    onlineUI?.hud(depth);
   }
   ui.vignette.style.setProperty('--v', String(0.25 + Math.min(1, depth / 550) * 0.7 + (air < 0.25 ? 0.2 : 0)));
   ui.grain.style.opacity = String(Math.max(0, (depth - 250) / 350) * 0.35);
@@ -1198,6 +1204,7 @@ const account = new Account({
     if (account.me) {
       ach.unlock('signed_in');
       lobby.start(account.me.id, account.me.display_name, coop.code);
+      lobby.set(account.me.display_name, coop.code); // picks up renames
     }
     onlineUI?.render();
   },
@@ -1245,6 +1252,11 @@ document.addEventListener('visibilitychange', () => {
   get remoteDivers() { return remote.states().map((r) => ({ id: r.id, ...r.s })); },
   get myId() { return localId(); },
   persist: () => persist(),
+  spawnAt(id: string, x: number, y: number, z: number) {
+    const f = fishMgr.add(SPECIES.find((s) => s.id === id)!, new THREE.Vector3(x, y, z), 1234);
+    if (coop.isHost) pendingSpawns.push(describeFish(f));
+    return f.key;
+  },
   get cargoCount() { return cargo.length; },
   unlock: (id: string) => ach.unlock(id),
   get air() { return air; },

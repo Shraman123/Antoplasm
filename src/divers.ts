@@ -73,8 +73,7 @@ function buildDiver(color: number) {
   // Fake lamp beam: additive cone, brightest at the head.
   const beamGeo = new THREE.ConeGeometry(2.2, 14, 20, 1, true);
   beamGeo.translate(0, -7, 0);
-  beamGeo.rotateX(Math.PI / 2);
-  beamGeo.rotateX(Math.PI);
+  beamGeo.rotateX(Math.PI / 2); // apex at the head, widening forward along -Z
   const beam = new THREE.Mesh(beamGeo, new THREE.MeshBasicMaterial({ color: 0xfff1c8, transparent: true, opacity: 0.06, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
   beam.position.set(0, 0.05, -0.8);
   root.add(beam);
