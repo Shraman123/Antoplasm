@@ -3,3 +3,6 @@ dist
 qa-out
 
 .vercel
+.env*.local
+supabase/.temp
+supabase/.branches

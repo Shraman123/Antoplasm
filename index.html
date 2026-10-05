@@ -43,6 +43,7 @@
         <div id="bandages">Bandages: 0</div>
       </div>
       <div id="hint"></div>
+      <div id="coop-hud" class="hidden"></div>
       <div id="log"></div>
       <div id="toasts"></div>
     </div>
@@ -60,10 +61,12 @@
         <div class="buttons">
           <button id="btn-start">Start Fishing</button>
           <button id="btn-new" class="ghost hidden">New Game</button>
+          <button id="btn-online-title" class="ghost hidden">Online</button>
           <button id="btn-ach-title" class="ghost">Achievements</button>
           <button id="btn-code-title" class="ghost">Save code</button>
           <button id="btn-install" class="ghost hidden">Install app</button>
         </div>
+        <p id="account-line" class="account-line hidden"></p>
         <p id="ios-tip" class="ios-tip hidden">Tip: tap <b>Share</b> then <b>Add to Home Screen</b> to play fullscreen and keep your save safe. Use <b>Save code</b> to bring this progress with you.</p>
         <div class="controls" id="controls-desktop">
           <span><kbd>W A S D</kbd> swim</span>
@@ -89,6 +92,7 @@
       <div class="panel">
         <h2>Paused</h2>
         <button id="btn-resume">Resume</button>
+        <button id="btn-online-pause" class="ghost hidden">Online</button>
         <button id="btn-ach-pause" class="ghost">Achievements</button>
         <button id="btn-code-pause" class="ghost">Save code</button>
       </div>
@@ -105,6 +109,104 @@
         <p id="code-msg" class="code-msg"></p>
         <button id="btn-code-load" class="ghost">Load (replaces this save)</button>
         <button id="btn-code-back" class="ghost">Back</button>
+      </div>
+    </div>
+
+    <div id="online" class="screen hidden">
+      <div class="panel online-panel">
+        <div class="online-head">
+          <h2>Online</h2>
+          <span id="sync-status" class="sync-status"></span>
+        </div>
+        <nav class="tabs" role="tablist">
+          <button data-tab="account" class="on" role="tab">Account</button>
+          <button data-tab="boards" role="tab">Leaderboards</button>
+          <button data-tab="friends" role="tab">Friends</button>
+          <button data-tab="coop" role="tab">Co-op</button>
+        </nav>
+
+        <section id="tab-account" class="tab">
+          <div id="acct-out">
+            <p class="code-help">You can always play as a guest &mdash; your progress stays on this device. Sign in to keep it safe in the cloud, appear on the leaderboards, add friends and dive together.</p>
+            <button id="btn-google" class="google"><span class="g">G</span> Continue with Google</button>
+            <p id="acct-pause-note" class="code-help hidden">Sign in from the title screen (it may swap in your cloud save).</p>
+            <form id="dev-login" class="dev-login hidden">
+              <small>Dev sign-in (local builds only)</small>
+              <input id="dev-email" type="email" placeholder="email" autocomplete="username" />
+              <input id="dev-pass" type="password" placeholder="password (6+)" autocomplete="current-password" />
+              <input id="dev-name" placeholder="display name" />
+              <button type="submit" class="ghost">Sign in / sign up</button>
+            </form>
+          </div>
+          <div id="acct-in" class="hidden">
+            <label class="field">Display name
+              <span class="row"><input id="acct-name" maxlength="20" /><button id="btn-rename" class="ghost">Save</button></span>
+            </label>
+            <div class="field">Your friend code
+              <span class="row"><b id="acct-code" class="friend-code"></b><button id="btn-copy-code" class="ghost">Copy</button></span>
+              <small>Give it to friends so they can add you.</small>
+            </div>
+            <p class="code-help">Your run, achievements and best stats sync to the cloud automatically.</p>
+            <button id="btn-signout" class="ghost">Sign out</button>
+          </div>
+          <p id="acct-error" class="code-msg err"></p>
+        </section>
+
+        <section id="tab-boards" class="tab hidden">
+          <div class="chips" id="board-metrics">
+            <button data-m="deepest" class="on">Deepest</button>
+            <button data-m="best_ending">Fastest to the bottom</button>
+            <button data-m="total_caught">Fish caught</button>
+            <button data-m="total_earned">Money earned</button>
+            <button data-m="achievements">Achievements</button>
+          </div>
+          <div class="chips small" id="board-scope">
+            <button data-s="global" class="on">Everyone</button>
+            <button data-s="friends">Friends</button>
+          </div>
+          <ol id="board" class="board"></ol>
+        </section>
+
+        <section id="tab-friends" class="tab hidden">
+          <form id="friend-add" class="row">
+            <input id="friend-code-in" placeholder="Friend code, e.g. K7Q2MX" maxlength="6" autocomplete="off" />
+            <button type="submit">Add</button>
+          </form>
+          <p id="friend-msg" class="code-msg"></p>
+          <ul id="friends" class="friends"></ul>
+        </section>
+
+        <section id="tab-coop" class="tab hidden">
+          <div id="coop-out">
+            <p class="code-help">Dive the same lake with up to 3 friends. Everyone keeps their own gear and money; the fish are shared &mdash; whoever lands the killing shot keeps the catch.</p>
+            <button id="btn-room-create">Create a room</button>
+            <form id="room-join" class="row">
+              <input id="room-code-in" placeholder="Room code" maxlength="6" autocomplete="off" />
+              <button type="submit" class="ghost">Join</button>
+            </form>
+          </div>
+          <div id="coop-in" class="hidden">
+            <div class="room-code-box">Room <b id="room-code"></b></div>
+            <button id="btn-room-invite" class="ghost">Copy invite link</button>
+            <ul id="room-members" class="friends"></ul>
+            <button id="btn-room-dive">Dive in</button>
+            <button id="btn-room-leave" class="ghost">Leave room</button>
+          </div>
+          <p id="coop-msg" class="code-msg"></p>
+        </section>
+
+        <button id="btn-online-back" class="ghost">Back</button>
+      </div>
+    </div>
+
+    <div id="conflict" class="screen hidden">
+      <div class="panel code-panel">
+        <h2>Two saves found</h2>
+        <p class="code-help">This device and your account both have a run in progress. Which one do you want to keep? Achievements and best stats from both are kept either way.</p>
+        <div class="conflict-choices">
+          <button id="btn-keep-local" class="choice"><b>This device</b><span id="conflict-local"></span></button>
+          <button id="btn-keep-cloud" class="choice"><b>Cloud save</b><span id="conflict-cloud"></span></button>
+        </div>
       </div>
     </div>
 

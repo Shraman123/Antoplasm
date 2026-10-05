@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { Audio } from './audio';
 import { AIR, ARMOR, BOAT_POS, DEPTH_LOGS, ENDING_DEPTH, HARPOON, rollIndividual, SPECIES, Species } from './config';
 import { Cutscene } from './cutscene';
-import { Fish, FishManager, fleshMat } from './fish';
+import { Fish, FishManager, fleshMat, type Diver } from './fish';
 import { decodeSave, encodeSave } from './savecode';
 import { causticUniforms } from './fx';
 import { EVENT_IDS, HorrorEvents } from './events';
@@ -12,6 +12,10 @@ import { isTouchDevice, TouchControls } from './touch';
 import { Vents } from './vents';
 import { ACHIEVEMENTS, Achievement, Achievements, renderAchievements } from './achievements';
 import { loadProfile, mergeProfiles, sanitizeProfile, storeProfile } from './profile';
+import { Account, isFreshRun, type RunSave } from './online';
+import { Coop, Lobby, type DiverState, type FishSpawn } from './coop';
+import { RemoteDivers } from './divers';
+import { OnlineUI } from './onlineui';
 import { floorY, World, zoneName } from './world';
 
 // ---------- DOM ----------
@@ -44,33 +48,44 @@ interface Save {
 }
 const SAVE_KEY = 'morrow-lake-save-v1';
 const fresh = (): Save => ({ money: 0, air: 0, harpoon: 0, armor: 0, journal: [], logs: [], caught: 0, earned: 0, deaths: 0, maxDepth: 0, playTime: 0, bandages: 0, harpoonV: 2 });
+/** Saves arrive from storage, pasted codes and the cloud, so never trust one blindly. */
+function normalizeSave(loaded: Record<string, unknown>): Save {
+  const out: Save = { ...fresh(), ...(loaded as Partial<Save>) };
+  // v1 had six harpoon tiers; v2 inserted new ones in between. Keep the same gun.
+  if (!loaded.harpoonV) out.harpoon = [0, 1, 3, 4, 6, 8][Number(loaded.harpoon) || 0] ?? 0;
+  out.harpoonV = 2;
+  const tier = (v: unknown, n: number) => Math.max(0, Math.min(n - 1, Math.floor(Number(v)) || 0));
+  out.air = tier(out.air, AIR.length);
+  out.harpoon = tier(out.harpoon, HARPOON.length);
+  out.armor = tier(out.armor, ARMOR.length);
+  if (!Array.isArray(out.journal)) out.journal = [];
+  if (!Array.isArray(out.logs)) out.logs = [];
+  return out;
+}
 let save: Save = fresh();
 let hasSave = false;
 try {
   const raw = localStorage.getItem(SAVE_KEY);
   if (raw) {
-    const loaded = JSON.parse(raw);
-    save = { ...fresh(), ...loaded };
-    // v1 had six harpoon tiers; v2 inserted new ones in between. Keep the same gun.
-    if (!loaded.harpoonV) save.harpoon = [0, 1, 3, 4, 6, 8][loaded.harpoon ?? 0] ?? 0;
-    save.harpoonV = 2;
-    // Saves can arrive by pasted code now, so never trust a tier index blindly.
-    const tier = (v: unknown, n: number) => Math.max(0, Math.min(n - 1, Math.floor(Number(v)) || 0));
-    save.air = tier(save.air, AIR.length);
-    save.harpoon = tier(save.harpoon, HARPOON.length);
-    save.armor = tier(save.armor, ARMOR.length);
+    save = normalizeSave(JSON.parse(raw));
     hasSave = true;
   }
 } catch { /* storage unavailable: play without saving */ }
 // Lifetime record (achievements, bests): survives the ending's wipe and "New Game".
 const profile = loadProfile();
-const persist = () => {
+const writeLocal = () => {
   try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch { /* ignore */ }
   storeProfile(profile);
+};
+/** Save locally now; the cloud copy (when signed in) follows a few seconds later. */
+const persist = () => {
+  writeLocal();
+  account.touch();
 };
 const ach = new Achievements(profile, (a) => {
   achToast(a);
   storeProfile(profile);
+  account.touch();
 });
 const wipe = () => {
   try { localStorage.removeItem(SAVE_KEY); } catch { /* ignore */ }
@@ -175,15 +190,19 @@ function spawnAtBoat() {
 spawnAtBoat();
 
 const fishMgr = new FishManager(scene, {
-  bite(f: Fish) {
+  bite(f: Fish, diver: string) {
+    if (diver !== localId()) return coop.send('bite', { to: diver, dmg: f.sp.damage });
     if (mode !== 'play') return;
-    const dmg = f.sp.damage * (1 - tierA().reduction);
-    hurt(dmg);
+    hurt(f.sp.damage * (1 - tierA().reduction));
   },
-  cue(f, kind) {
+  cue(f, kind, diver) {
+    if (diver !== localId()) return coop.send('cue', { to: diver, kind, k: f.key });
     if (mode !== 'play') return;
     // Louder the closer it is, so you can tell which one is coming.
     audio.cue(kind, Math.max(0.25, 1 - f.root.position.distanceTo(camera.position) / 40));
+  },
+  spawned(f) {
+    if (coop.isHost) pendingSpawns.push(describeFish(f));
   },
 });
 
@@ -274,6 +293,7 @@ function fire() {
   spearState.travelled = 0;
   spear.visible = true;
   rope.visible = true;
+  sendShot(spear.position, dir);
   gun.fire();
   reloadT = tierH().reload;
   audio.fire();
@@ -303,6 +323,7 @@ function fireScatter() {
     launched++;
   }
   for (let i = 0; i < 18; i++) bubbles.emit(origin.clone().addScaledVector(fwd, Math.random() * 1.5)); // muzzle blast
+  sendShot(origin, fwd);
   gun.fire();
   reloadT = t.reload;
   audio.blast();
@@ -322,11 +343,7 @@ function updatePellets(dt: number) {
     for (const f of [...fishMgr.fish]) {
       if (!f.alive) continue;
       if (segClosest(p.prev, p.obj.position, f.root.position) < f.radius + 0.35 + p.travelled * 0.03) {
-        f.hp -= t.damage;
-        f.flash();
-        audio.hit();
-        if (f.hp <= 0) catchFish(f);
-        else f.vel.addScaledVector(p.vel, 0.03);
+        hitFish(f, t.damage, p.vel, 0.03);
         hit = true;
         break;
       }
@@ -352,11 +369,7 @@ function updateSpear(dt: number) {
   spearState.travelled += spearState.vel.length() * dt;
   for (const f of fishMgr.fish) {
     if (segClosest(spearState.prev, spear.position, f.root.position) < f.radius + 0.35 + spearState.travelled * 0.05) {
-      f.hp -= tierH().damage;
-      f.flash();
-      audio.hit();
-      if (f.hp <= 0) catchFish(f);
-      else f.vel.addScaledVector(spearState.vel, 0.06);
+      hitFish(f, tierH().damage, spearState.vel, 0.06);
       endSpear();
       return;
     }
@@ -373,9 +386,28 @@ function endSpear() {
   rope.visible = false;
 }
 
-function catchFish(f: Fish) {
-  const sp = f.sp;
+/** Our spear/flechette hit a fish. In co-op the host owns every fish's health, so a guest just reports it. */
+function hitFish(f: Fish, dmg: number, push: THREE.Vector3, kick: number) {
+  f.flash();
+  audio.hit();
+  if (coop.active && !coop.isHost) {
+    pendingHits.set(f.key, (pendingHits.get(f.key) ?? 0) + dmg);
+    return;
+  }
+  f.hp -= dmg;
+  f.hitBy.add(localId());
+  if (f.hp <= 0) killFish(f, localId());
+  else f.vel.addScaledVector(push, kick);
+}
+/** Host/offline: a fish died. Whoever landed the killing shot gets the catch. */
+function killFish(f: Fish, by: string) {
+  const assist = [...f.hitBy].some((id) => id !== by);
+  if (coop.active) coop.send('kill', { k: f.key, by, sp: f.sp, assist });
   fishMgr.remove(f);
+  if (by === localId()) landCatch(f.sp, assist);
+}
+function landCatch(sp: Species, assist: boolean) {
+  if (assist) ach.unlock('coop_catch');
   cargo.push(sp);
   save.caught++;
   profile.totalCaught++;
@@ -767,12 +799,17 @@ const cutscene = new Cutscene(scene, camera, world, audio, {
     if (save.deaths === 0) ach.unlock('no_deaths');
     if (save.playTime < 40 * 60) ach.unlock('speedrun');
     storeProfile(profile);
+    // The run is over: the cloud copy starts fresh too (records keep every best).
+    save = fresh();
+    account.touch();
+    void account.flush();
     wipe();
   },
 });
 
 function triggerEnding() {
   if (mode === 'cutscene' || mode === 'ending') return;
+  coop.leave(); // the bottom of the lake is a solo trip
   mode = 'cutscene';
   (window as any).__noPause = true;
   document.exitPointerLock();
@@ -959,7 +996,12 @@ function tick(dt: number) {
     }
   }
   const playing = mode === 'play';
-  fishMgr.update(playing ? dt : mode === 'cutscene' ? dt : 0, time, camera.position, mode !== 'play', camera.getWorldDirection(lookDir));
+  // In co-op the lake never pauses for one player: the host keeps the fish going from the shop too.
+  const coopLive = coop.active && mode !== 'cutscene' && mode !== 'ending';
+  fishMgr.updateAll(playing || mode === 'cutscene' || coopLive ? dt : 0, time, divers());
+  if (coop.active) netTick(dt);
+  remote.update(dt, time);
+  remote.updateTracers(dt);
   if (!manualCut) cutscene.update(dt);
   if (mode !== 'cutscene' && mode !== 'ending') world.update(dt, time, camera.position);
   horror.update(mode === 'play' ? dt : 0, depthNow(), mode === 'play'); // frozen while paused/in the shop
@@ -1009,6 +1051,187 @@ document.addEventListener('visibilitychange', () => {
   if (document.hidden) pauseGame();
 });
 
+// ---------- Online: accounts, cloud saves, co-op ----------
+const localId = () => (coop.active ? account.userId ?? 'local' : 'local');
+const remote = new RemoteDivers(scene);
+let pendingSpawns: FishSpawn[] = [];
+const pendingHits = new Map<string, number>();
+let netT = 0;
+let fishNetT = 0;
+let lastNeed = 0;
+const describeFish = (f: Fish): FishSpawn => ({ k: f.key, sp: f.sp, seed: f.seed, p: [f.root.position.x, f.root.position.y, f.root.position.z] });
+const lookOf = (yw: number, pt: number) => new THREE.Vector3(0, 0, -1).applyEuler(new THREE.Euler(pt, yw, 0, 'YXZ'));
+const divers = (): Diver[] => {
+  const list: Diver[] = [{ id: localId(), pos: camera.position, look: camera.getWorldDirection(lookDir), hidden: mode !== 'play' }];
+  if (coop.active) for (const r of remote.states()) list.push({ id: r.id, pos: new THREE.Vector3(r.s.x, r.s.y, r.s.z), look: lookOf(r.s.yaw, r.s.pitch), hidden: r.s.hidden });
+  return list;
+};
+const myState = (): DiverState => ({
+  x: camera.position.x, y: camera.position.y, z: camera.position.z, yaw, pitch,
+  hidden: mode !== 'play', live: !document.hidden && ['play', 'paused', 'shop', 'dead'].includes(mode), hp: Math.round(hp), tier: save.harpoon,
+});
+function sendShot(o: THREE.Vector3, d: THREE.Vector3) {
+  if (!coop.active) return;
+  const r = (v: number) => Math.round(v * 100) / 100;
+  coop.send('shot', { id: localId(), o: [r(o.x), r(o.y), r(o.z)], d: [r(d.x), r(d.y), r(d.z)], tier: save.harpoon });
+}
+function netTick(dt: number) {
+  coop.live = myState().live;
+  netT += dt;
+  fishNetT += dt;
+  if (netT >= 1 / 8) {
+    netT = 0;
+    coop.send('p', { id: localId(), s: myState() });
+    if (pendingHits.size) {
+      coop.send('hit', { hits: [...pendingHits.entries()], by: localId() });
+      pendingHits.clear();
+    }
+  }
+  if (coop.isHost && fishNetT >= 0.2) {
+    fishNetT = 0;
+    if (pendingSpawns.length) coop.send('spawn', { list: pendingSpawns.splice(0) });
+    coop.send('fs', { rows: fishMgr.snapshot() });
+  }
+  // Co-op achievements.
+  if (mode === 'play' && depthNow() > 5 && coop.peers.size >= 2) ach.unlock('coop_dive');
+  if (coop.peers.size >= 4) ach.unlock('coop_full');
+}
+
+const coop = new Coop(() => ({ id: account.userId ?? 'local', name: account.me?.display_name ?? 'Diver' }), {
+  peersChanged(peers) {
+    remote.sync(peers.filter((p) => p.id !== account.userId));
+    if (!coop.active) {
+      // Back to solo: our own game owns the fish again.
+      fishMgr.authority = true;
+      remote.clear();
+    }
+    onlineUI?.render();
+  },
+  hostChanged(isHost) {
+    if (isHost) {
+      fishMgr.takeAuthority(`${(account.userId ?? 'x').slice(0, 4)}${(Date.now() % 1e5).toString(36)}-`);
+      pendingSpawns = fishMgr.fish.map(describeFish); // let everyone (re)build what we have
+      if (coop.active) toast('You are running the lake for this room.');
+    } else if (coop.active) {
+      fishMgr.authority = false;
+    }
+  },
+  peerState(id, s) {
+    remote.push(id, s);
+  },
+  fishSnapshot(rows) {
+    const missing = fishMgr.applySnapshot(rows);
+    if (missing.length && performance.now() - lastNeed > 1000) {
+      lastNeed = performance.now();
+      coop.send('need', { keys: missing });
+    }
+  },
+  fishSpawn(list) {
+    for (const f of list) if (!fishMgr.byKey(f.k)) fishMgr.add(f.sp, new THREE.Vector3(...f.p), f.seed, f.k);
+  },
+  fishNeed(keys) {
+    for (const k of keys) {
+      const f = fishMgr.byKey(k);
+      if (f && !pendingSpawns.some((p) => p.k === k)) pendingSpawns.push(describeFish(f));
+    }
+  },
+  fishHit(hits, by) {
+    for (const [k, dmg] of hits) {
+      const f = fishMgr.byKey(k);
+      if (!f || !f.alive) continue;
+      f.hp -= dmg;
+      f.hitBy.add(by);
+      f.flash();
+      if (f.hp <= 0) killFish(f, by);
+    }
+  },
+  fishKill(k, by, sp, assist) {
+    const f = fishMgr.byKey(k);
+    if (f) fishMgr.remove(f);
+    if (by === account.userId) landCatch(sp, assist);
+  },
+  bitten(dmg) {
+    if (mode === 'play') hurt(dmg * (1 - tierA().reduction));
+  },
+  cue(kind, k) {
+    if (mode !== 'play') return;
+    const f = fishMgr.byKey(k);
+    audio.cue(kind as Parameters<typeof audio.cue>[0], Math.max(0.25, 1 - (f ? f.root.position.distanceTo(camera.position) : 20) / 40));
+  },
+  shot(id, o, d, tier) {
+    const h = HARPOON[tier] ?? HARPOON[0];
+    remote.shot(o, d, h.speed, h.pellets ?? 1);
+    if (new THREE.Vector3(o[0], o[1], o[2]).distanceTo(camera.position) < 30) audio.hit();
+    void id;
+  },
+  problem(msg) {
+    toast(msg);
+  },
+});
+
+const lobby = new Lobby(() => onlineUI?.render());
+let onlineUI: OnlineUI | null = null;
+const account = new Account({
+  getSave: () => save as unknown as RunSave,
+  getRecord: () => profile,
+  applyRecord(r) {
+    Object.assign(profile, mergeProfiles(profile, sanitizeProfile(r)));
+    storeProfile(profile);
+    updateAchButtons();
+  },
+  applySave(s) {
+    save = normalizeSave(s);
+    writeLocal();
+    if (mode === 'title') {
+      hasSave = !isFreshRun(s);
+      $('btn-start').textContent = hasSave ? 'Continue' : 'Start Fishing';
+      $('btn-new').classList.toggle('hidden', !hasSave);
+    } else {
+      // Swapped mid-game (another device won a conflict): wake up on the boat with that run.
+      cargo = [];
+      spawnAtBoat();
+      toast('Loaded your cloud save.');
+    }
+  },
+  chooseRun: (local, cloud) => onlineUI!.chooseRun(local, cloud),
+  changed() {
+    if (account.me) {
+      ach.unlock('signed_in');
+      lobby.start(account.me.id, account.me.display_name, coop.code);
+    }
+    onlineUI?.render();
+  },
+});
+onlineUI = new OnlineUI({
+  account,
+  coop,
+  lobby,
+  mode: () => mode,
+  dive() {
+    if (mode === 'title') startGame();
+    else if (mode === 'paused') {
+      mode = 'play';
+      lock();
+    }
+  },
+  toast,
+  unlock: (id) => ach.unlock(id),
+});
+void account.init().then(() => {
+  // Invite links: ?room=CODE opens the co-op tab and joins.
+  const room = new URLSearchParams(location.search).get('room');
+  if (!room || !account.enabled) return;
+  history.replaceState(null, '', location.pathname);
+  if (mode !== 'title') return;
+  onlineUI!.open('title', account.me ? 'coop' : 'account');
+  if (account.me) void onlineUI!.joinRoom(room);
+  else toast('Sign in to join your friend’s room.');
+});
+addEventListener('pagehide', () => void account.flush());
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) void account.flush();
+});
+
 // QA / debug hooks.
 (window as any).__game = {
   get mode() { return mode; },
@@ -1016,6 +1239,13 @@ document.addEventListener('visibilitychange', () => {
   get fish() { return fishMgr.fish.length; },
   get hp() { return hp; },
   get profile() { return profile; },
+  account,
+  coop,
+  get fishAuthority() { return fishMgr.authority; },
+  get remoteDivers() { return remote.states().map((r) => ({ id: r.id, ...r.s })); },
+  get myId() { return localId(); },
+  persist: () => persist(),
+  get cargoCount() { return cargo.length; },
   unlock: (id: string) => ach.unlock(id),
   get air() { return air; },
   get fov() { return camera.fov; },
@@ -1039,10 +1269,9 @@ document.addEventListener('visibilitychange', () => {
     camera.quaternion.setFromEuler(new THREE.Euler(pitch, yaw, 0, 'YXZ'));
     const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
     const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
-    const f = new Fish(sp, camera.position.clone().addScaledVector(dir, dist).addScaledVector(right, dx), Math.floor(Math.random() * 1e6));
+    const f = fishMgr.add(sp, camera.position.clone().addScaledVector(dir, dist).addScaledVector(right, dx), Math.floor(Math.random() * 1e6));
     f.root.lookAt(f.root.position.clone().add(right));
-    fishMgr.fish.push(f);
-    fishMgr.group.add(f.root);
+    if (coop.isHost) pendingSpawns.push(describeFish(f));
     return f;
   },
   clearFish() { fishMgr.clear(); },

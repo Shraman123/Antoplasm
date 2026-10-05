@@ -190,9 +190,18 @@ export class Fish {
   orbit = Math.random() * Math.PI * 2;
   /** 0..1: how hard the body is shuddering, the visible tell before an attack. */
   agitate = 0;
+  /** Network id in co-op (also used offline, harmlessly). */
+  key = '';
+  /** Co-op: divers who have hit this fish, for assist credit. */
+  hitBy = new Set<string>();
+  /** Co-op puppet: last position received from the host. */
+  netPos?: THREE.Vector3;
+  /** Seed its look was built from, so other players build the same fish. */
+  seed: number;
 
   constructor(sp: Species, pos: THREE.Vector3, seed: number) {
     this.sp = sp;
+    this.seed = seed;
     const b = buildFish(sp, seed);
     this.root = b.root;
     this.segs = b.segs;
@@ -220,10 +229,25 @@ export class Fish {
 export type CueKind = 'dart' | 'charge' | 'lunge' | 'shriek' | 'stalk';
 
 export interface FishEvents {
-  bite(fish: Fish): void;
-  /** An attack is about to land: play its warning sound. */
-  cue?(fish: Fish, kind: CueKind): void;
+  /** A fish bit a diver ('local' or a co-op player's id). */
+  bite(fish: Fish, diver: string): void;
+  /** An attack on that diver is about to land: play its warning sound. */
+  cue?(fish: Fish, kind: CueKind, diver: string): void;
+  /** Host: a fish was spawned (so it can be announced to other players). */
+  spawned?(fish: Fish): void;
 }
+
+/** Someone in the water. Offline there is exactly one: the local player. */
+export interface Diver {
+  id: string;
+  pos: THREE.Vector3;
+  look: THREE.Vector3;
+  /** Paused, in the shop, dead: fish ignore them. */
+  hidden: boolean;
+}
+
+/** Behaviour states, indexed for compact network snapshots. */
+export const STATES = ['idle', 'tell', 'dart', 'tired', 'lurk', 'retreat', 'seen', 'creep', 'charge', 'recover', 'circle', 'lunge', 'hang', 'attack', 'orbit'];
 
 /** Spawns species appropriate to the player's depth and runs their behaviour. */
 export class FishManager {
@@ -231,6 +255,13 @@ export class FishManager {
   group = new THREE.Group();
   private seed = 1;
   enabled = true;
+  /** Co-op: false on non-host clients, whose fish are puppets driven by host snapshots. */
+  authority = true;
+  /** Prefix for fish keys, unique per host so keys never collide after a host change. */
+  keyPrefix = 'f';
+  private nextKey = 1;
+  /** Id of the diver the fish being updated is hunting. */
+  private target = 'local';
   /** QA: stop ambient spawning so a test controls exactly which fish exist. */
   spawning = true;
   /** Husk packs attack one at a time; this is the one currently allowed to. */
@@ -270,14 +301,26 @@ export class FishManager {
         }
       }
       sp = rollIndividual(sp, -y);
-      const f = new Fish(sp, new THREE.Vector3(x, y, z), this.seed++ * 977);
-      this.fish.push(f);
-      this.group.add(f.root);
+      const f = this.add(sp, new THREE.Vector3(x, y, z), this.seed++ * 977);
+      this.events.spawned?.(f);
       return;
     }
   }
 
+  add(sp: Species, pos: THREE.Vector3, seed: number, key?: string) {
+    const f = new Fish(sp, pos, seed);
+    f.key = key ?? `${this.keyPrefix}${this.nextKey++}`;
+    this.fish.push(f);
+    this.group.add(f.root);
+    return f;
+  }
+
+  byKey(key: string) {
+    return this.fish.find((f) => f.key === key);
+  }
+
   remove(f: Fish) {
+    if (!f.alive) return;
     if (this.packAttacker === f) this.packAttacker = null;
     f.alive = false;
     f.dispose();
@@ -289,10 +332,20 @@ export class FishManager {
   }
 
   update(dt: number, t: number, player: THREE.Vector3, playerHidden: boolean, look = new THREE.Vector3(0, 0, -1)) {
+    this.updateAll(dt, t, [{ id: 'local', pos: player, look, hidden: playerHidden }]);
+  }
+
+  /** Run every fish against the nearest visible diver. divers[0] is the local player. */
+  updateAll(dt: number, t: number, divers: Diver[]) {
     if (!this.enabled) return;
-    const depth = -player.y;
-    const want = player.y > -1 ? 10 : depth > 300 ? 16 : 22;
-    if (this.spawning && this.fish.length < want && Math.random() < 0.5) this.spawnNear(player);
+    if (!this.authority) return this.updatePuppets(dt, t, divers[0].pos);
+    // Each diver keeps a school around them; a diver deep below shares nothing with one at the surface.
+    if (this.spawning && this.fish.length < 22 * divers.length && Math.random() < 0.5) {
+      const d = divers[Math.floor(Math.random() * divers.length)];
+      const near = this.fish.filter((f) => f.root.position.distanceTo(d.pos) < 60).length;
+      const want = d.pos.y > -1 ? 10 : -d.pos.y > 300 ? 16 : 22;
+      if (near < want) this.spawnNear(d.pos);
+    }
 
     const toP = new THREE.Vector3();
     const desired = new THREE.Vector3();
@@ -301,11 +354,28 @@ export class FishManager {
     if (pa && (!pa.alive || (pa.state !== 'attack' && pa.state !== 'tell'))) this.packAttacker = null;
     for (const f of [...this.fish]) {
       const p = f.root.position;
-      const dist = p.distanceTo(player);
-      if (dist > 95) {
+      // Hunt / flee whoever is closest, preferring divers who are actually in the water.
+      let diver = divers[0];
+      let best = Infinity;
+      let anyDist = Infinity;
+      for (const d of divers) {
+        const dd = p.distanceTo(d.pos);
+        anyDist = Math.min(anyDist, dd);
+        const score = d.hidden ? dd + 1000 : dd;
+        if (score < best) {
+          best = score;
+          diver = d;
+        }
+      }
+      if (anyDist > 95) {
         this.remove(f);
         continue;
       }
+      const player = diver.pos;
+      const playerHidden = diver.hidden;
+      const look = diver.look;
+      const dist = p.distanceTo(player);
+      this.target = diver.id;
       const sp = f.sp;
       f.biteCd -= dt;
       f.retarget -= dt;
@@ -326,7 +396,7 @@ export class FishManager {
         speed = sp.speed * (1.1 + sp.infection * 0.5);
         const reach = f.radius + 1.1;
         if (dist < reach && f.biteCd <= 0) {
-          this.events.bite(f);
+          this.events.bite(f, this.target);
           f.biteCd = 1.5 - sp.infection * 0.4;
           f.vel.copy(toP).normalize().multiplyScalar(-sp.speed * 1.5); // recoil
         }
@@ -356,10 +426,18 @@ export class FishManager {
       const floor = floorY(p.x, p.z) + 0.8;
       if (p.y < floor) p.y = floor;
       if (p.y > -1) p.y = -1;
+      this.animate(f, dt, t, dist, player);
+    }
+  }
+
+  /** Orientation, swim wiggle, jaw and lure: everything visual, shared by host fish and puppets. */
+  private animate(f: Fish, dt: number, t: number, dist: number, player: THREE.Vector3) {
+      const p = f.root.position;
+      const sp = f.sp;
       if (f.state === 'tell') {
         // Wind-up: point down the locked attack line so it's readable (husks home in instead).
         const q0 = f.root.quaternion.clone();
-        f.root.lookAt(f.sp.behavior === 'pack' ? player : p.clone().add(f.dir));
+        f.root.lookAt(f.sp.behavior === 'pack' || !f.dir.lengthSq() ? player : p.clone().add(f.dir));
         f.root.quaternion.copy(q0.slerp(f.root.quaternion, Math.min(1, dt * 8)));
       } else if (f.vel.lengthSq() > 0.01) {
         const look = p.clone().add(f.vel);
@@ -382,12 +460,73 @@ export class FishManager {
         const glow = f.state === 'tell' ? 9 + Math.sin(t * 40) * 3 : 2 + 5 * Math.max(0, 1 - dist / 22);
         f.lure.emissiveIntensity = glow * (0.85 + 0.15 * Math.sin(t * 2.3 + f.phase));
       }
+  }
+
+  /** Non-host: glide each fish toward the host's last reported position, then animate it. */
+  private updatePuppets(dt: number, t: number, me: THREE.Vector3) {
+    for (const f of this.fish) {
+      if (f.hitFlash > 0) {
+        f.hitFlash -= dt;
+        if (f.hitFlash <= 0) f.meshes.forEach((m, i) => (m.material = f.origMats[i]));
+      }
+      const p = f.root.position;
+      if (f.netPos) {
+        f.netPos.addScaledVector(f.vel, dt); // extrapolate between snapshots
+        p.lerp(f.netPos, Math.min(1, dt * 8));
+      }
+      f.agitate = Math.max(0, f.agitate - dt * 0.5);
+      this.animate(f, dt, t, p.distanceTo(me), me);
+    }
+  }
+
+  /** Host: compact state of every fish for other players. */
+  snapshot(): (string | number)[][] {
+    const r = (v: number) => Math.round(v * 100) / 100;
+    return this.fish.map((f) => {
+      const p = f.root.position;
+      return [f.key, r(p.x), r(p.y), r(p.z), r(f.vel.x), r(f.vel.y), r(f.vel.z), STATES.indexOf(f.state), Math.round(f.agitate * 9), r(f.dir.x), r(f.dir.y), r(f.dir.z)];
+    });
+  }
+
+  /** Non-host: apply a snapshot. Returns keys we don't have yet (ask the host to describe them). */
+  applySnapshot(rows: (string | number)[][]): string[] {
+    const seen = new Set<string>();
+    const missing: string[] = [];
+    for (const row of rows) {
+      const [key, x, y, z, vx, vy, vz, st, ag, dx, dy, dz] = row as [string, ...number[]];
+      seen.add(key);
+      const f = this.byKey(key);
+      if (!f) {
+        missing.push(key);
+        continue;
+      }
+      if (!f.netPos) {
+        f.netPos = new THREE.Vector3(x, y, z);
+        f.root.position.set(x, y, z);
+      } else f.netPos.set(x, y, z);
+      f.vel.set(vx, vy, vz);
+      f.state = STATES[st] ?? 'idle';
+      f.agitate = Math.max(f.agitate, ag / 9);
+      f.dir.set(dx ?? 0, dy ?? 0, dz ?? 0);
+    }
+    for (const f of [...this.fish]) if (!seen.has(f.key)) this.remove(f);
+    return missing;
+  }
+
+  /** Host handover: puppets become real fish (their AI restarts from a calm state). */
+  takeAuthority(prefix: string) {
+    this.authority = true;
+    this.keyPrefix = prefix;
+    for (const f of this.fish) {
+      f.netPos = undefined;
+      f.state = 'idle';
+      f.target.copy(f.root.position);
     }
   }
 
   private bite(f: Fish, dist: number, extraReach = 0) {
     if (dist < f.radius + 1.1 + extraReach && f.biteCd <= 0) {
-      this.events.bite(f);
+      this.events.bite(f, this.target);
       f.biteCd = 1.5 - f.sp.infection * 0.4;
       return true;
     }
@@ -411,7 +550,7 @@ export class FishManager {
     const sp = f.sp;
     const dirP = toP.clone().normalize();
     const hurt = f.hp < sp.hp;
-    const cue = (k: CueKind) => this.events.cue?.(f, k);
+    const cue = (k: CueKind) => this.events.cue?.(f, k, this.target);
     switch (sp.behavior) {
       case 'ambush': {
         // Lurks almost still; flexes, then darts in a straight line. Tired afterwards: shoot it then.
