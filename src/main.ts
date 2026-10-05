@@ -5,6 +5,8 @@ import { Cutscene } from './cutscene';
 import { Fish, FishManager, fleshMat } from './fish';
 import { decodeSave, encodeSave } from './savecode';
 import { causticUniforms } from './fx';
+import { EVENT_IDS, HorrorEvents } from './events';
+const TEODOR_KNOWS = 10006;
 import { BubbleTrail, buildFlechette, buildSpear, HarpoonGun } from './harpoon';
 import { isTouchDevice, TouchControls } from './touch';
 import { Vents } from './vents';
@@ -172,6 +174,20 @@ const fishMgr = new FishManager(scene, {
     // Louder the closer it is, so you can tell which one is coming.
     audio.cue(kind, Math.max(0.25, 1 - f.root.position.distanceTo(camera.position) / 40));
   },
+});
+
+const horror = new HorrorEvents({
+  scene,
+  camera,
+  seen: (id) => save.logs.includes(id),
+  mark: (id) => {
+    save.logs.push(id);
+    persist();
+  },
+  log: (text, secs) => showLog(text, secs),
+  shake: (a) => (shake = Math.max(shake, a)),
+  lamp: (m) => (world.lampMult = m),
+  sound: audio,
 });
 
 function hurt(dmg: number) {
@@ -496,8 +512,15 @@ const nearBoat = () => Math.hypot(camera.position.x - BOAT_POS.x, camera.positio
 
 function teodorLine() {
   const d = save.maxDepth;
+  // He says this once, the first time you come back after finding the diver.
+  if (save.logs.includes(EVENT_IDS.blackout) && !save.logs.includes(TEODOR_KNOWS)) {
+    save.logs.push(TEODOR_KNOWS);
+    persist();
+    return `"...You found him. Didn't you. Don't — don't tell me how he looked. Just sell your fish."`;
+  }
   if (d > 480) return '"You went to the bottom-steps. I can smell it on you. Sell it and don\'t tell me what you saw."';
   if (d > 360) return '"My father said there was a town here, before the water. I never believed him. Don\'t look at me like that."';
+
   if (d > 240) return '"Gloves. Always gloves with the red ones. The buyers in the city don\'t ask where they come from — and they pay."';
   if (d > 120) return '"Spots on the trout, eh? It\'s nothing. Probably nothing. Prices are good though!"';
   return '"Fine morning for it! Bring me bluegill and perch and I\'ll keep you in air."';
@@ -598,6 +621,7 @@ function renderShop() {
 // ---------- Death / ending ----------
 function die(reason: string) {
   mode = 'dead';
+  horror.reset();
   document.exitPointerLock();
   const lost = cargo.length;
   cargo = [];
@@ -657,6 +681,7 @@ function triggerEnding() {
   ui.pressure.style.display = 'none';
   endSpear();
   gun.root.visible = false;
+  horror.reset();
   cutscene.start();
 }
 
@@ -813,6 +838,7 @@ function frame() {
   fishMgr.update(playing ? dt : mode === 'cutscene' ? dt : 0, time, camera.position, mode !== 'play', camera.getWorldDirection(lookDir));
   if (!manualCut) cutscene.update(dt);
   if (mode !== 'cutscene' && mode !== 'ending') world.update(dt, time, camera.position);
+  horror.update(mode === 'play' ? dt : 0, depthNow(), mode === 'play'); // frozen while paused/in the shop
   fleshMat.emissiveIntensity = 0.45 + Math.sin(time * 2.1) * 0.25;
   if (playing) updateHud(dt);
   if (spearState.active) {
@@ -896,6 +922,8 @@ document.addEventListener('visibilitychange', () => {
     return f;
   },
   clearFish() { fishMgr.clear(); },
+  scare(name: 'shadow' | 'blackout' | 'radio' | 'beneath' | 'eyes') { horror.trigger(name); },
+  get scareBusy() { return horror.busy; },
   set spawning(v: boolean) { fishMgr.spawning = v; },
   get fishes() { return fishMgr.fish.map((f) => ({ id: f.sp.id, state: f.state, dist: f.root.position.distanceTo(camera.position), hp: f.hp })); },
   move(dx: number, dy: number, dz: number) { camera.position.x += dx; camera.position.y += dy; camera.position.z += dz; },

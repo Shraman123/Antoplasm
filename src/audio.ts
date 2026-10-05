@@ -250,6 +250,18 @@ export class Audio {
     }
   }
 
+  /** Jump-scare stinger: a dissonant cluster that hits and rings out. */
+  sting() {
+    for (const f of [233, 247, 349, 370, 523]) this.tone(f, 1.6, 0.16, 'sawtooth', this.reverb, f * 0.94, 0.005);
+    this.noiseHit(0.5, 0.9, 2500, 'bandpass', 300);
+  }
+  /** Radio static with a voice-band warble under it. */
+  radio() {
+    this.noiseHit(1.2, 0.5, 1600, 'bandpass', 900);
+    this.tone(310, 0.9, 0.08, 'square', undefined, 280, 0.05);
+    setTimeout(() => this.noiseHit(0.5, 0.4, 2200, 'bandpass', 700), 600);
+  }
+
   rumble(dur: number, vol: number) {
     this.noiseHit(dur, vol, 120, 'lowpass', 40);
   }

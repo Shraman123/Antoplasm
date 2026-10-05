@@ -91,6 +91,8 @@ export class World {
   private particleBase: Float32Array;
   private particleMat: THREE.PointsMaterial;
   private flickerT = 0;
+  /** Scripted events can kill or dim the lamp (1 = normal). */
+  lampMult = 1;
   private skyColor = new THREE.Color(0xa9d4e8);
 
   constructor(scene: THREE.Scene, camera: THREE.Camera) {
@@ -404,6 +406,7 @@ export class World {
         if (this.flickerT < 0) this.flickerT = Math.random() < 0.06 ? 0.08 + Math.random() * 0.25 : 0.4 + Math.random() * 2.5;
         if (this.flickerT < 0.3 && Math.random() < smooth(380, 600, depth) * 0.7) fl *= Math.random() * 0.3;
       }
+      fl *= this.lampMult;
       this.flashlight.intensity = fl;
       // Visible beam only once it's dark enough for the lamp to matter; follows the flicker.
       const bs = (fl / 66) * smooth(40, 200, depth);
