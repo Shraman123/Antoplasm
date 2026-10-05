@@ -16,7 +16,7 @@ npm run build    # static build in dist/
 ## Controls
 WASD swim · mouse look · click fire · Space/C up/down · Shift sprint · E boat shop (at surface) · H bandage · M mute
 
-**Touch:** left-side floating stick to swim, drag the right side to look, hold FIRE, plus up/down/sprint/bandage/pause/SHOP buttons. Add `?touch=1` to force touch controls on desktop.
+**Touch:** left-side floating stick to swim, drag the right side to look, hold FIRE, plus up/down/sprint/bandage/pause/SHOP buttons. Works in portrait and landscape. Add `?touch=1` to force touch controls on desktop.
 
 ## Design
 | Depth | Zone | Fish |

@@ -75,14 +75,22 @@ const world = new World(scene, camera);
 const vents = new Vents(world.lakeGroup, world.growthMat);
 let ventAir = 0;
 const audio = new Audio();
-addEventListener('resize', () => {
-  renderer.setSize(innerWidth, innerHeight);
-  camera.aspect = innerWidth / innerHeight;
-  camera.updateProjectionMatrix();
-});
-
 // Harpoon gun held in view, plus the spear that actually flies.
 const gun = new HarpoonGun(camera);
+/** Fit the view to the screen. On a tall (portrait) phone a fixed vertical FOV leaves a keyhole-thin
+ * horizontal view, so widen it to keep ~60° across, and pull the gun in so it stays on screen. */
+function fitView() {
+  renderer.setSize(innerWidth, innerHeight);
+  const aspect = innerWidth / innerHeight;
+  camera.aspect = aspect;
+  const minHalfH = Math.tan(THREE.MathUtils.degToRad(30));
+  camera.fov = Math.min(100, Math.max(72, THREE.MathUtils.radToDeg(2 * Math.atan(minHalfH / aspect))));
+  camera.updateProjectionMatrix();
+  const portrait = aspect < 1;
+  gun.root.position.set(portrait ? 0.1 : 0.2, portrait ? -0.24 : -0.18, -0.4);
+}
+addEventListener('resize', fitView);
+fitView();
 let spear = new THREE.Group();
 let spearTier = -1;
 function syncHarpoonLook() {
@@ -371,13 +379,11 @@ $('btn-again').onclick = () => {
 
 function startGame() {
   if (TOUCH) {
-    // Best effort: fullscreen hides browser chrome, landscape gives the controls room.
+    // Best effort: fullscreen hides browser chrome. Both orientations are playable, so no lock.
     const el = document.documentElement as HTMLElement & { webkitRequestFullscreen?: () => void };
     try {
       const p = el.requestFullscreen ? el.requestFullscreen() : el.webkitRequestFullscreen?.();
-      Promise.resolve(p)
-        .then(() => (screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> }).lock?.('landscape'))
-        .catch(() => {});
+      Promise.resolve(p).catch(() => {});
     } catch { /* not supported (e.g. iPhone Safari) */ }
   }
   audio.start();
@@ -778,6 +784,7 @@ document.addEventListener('visibilitychange', () => {
   get fish() { return fishMgr.fish.length; },
   get hp() { return hp; },
   get air() { return air; },
+  get fov() { return camera.fov; },
   teleport(depth: number, x = 0, z = 0) {
     camera.position.set(x, -depth, z);
     world.clampToLake(camera.position);

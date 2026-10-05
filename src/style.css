@@ -154,14 +154,25 @@ body.touch #hint { bottom: calc(76px + env(safe-area-inset-bottom)); font-size: 
 body.touch #caption { font-size: 16px; }
 body.touch #pressure-warn { top: 30%; font-size: 14px; }
 
-/* Rotate prompt: only on touch, only in portrait, only while a game screen is up */
-#rotate { display: none; }
+
+/* Portrait phones: a tall, narrow screen. Bars drop below the top readouts, the up/down
+   buttons stack above FIRE, and the shop button and hints move clear of the thumbs. */
 @media (orientation: portrait) {
-  body.touch #rotate { position: fixed; inset: 0; z-index: 30; background: rgba(4,10,14,0.94); color: #eef6f8; display: grid; place-content: center; text-align: center; gap: 10px; font-size: 16px; padding: 24px; }
-  body.touch #rotate div { font-size: 54px; animation: spin 2.4s ease-in-out infinite; }
-  body.touch.on-title #rotate { display: none; }
+  body.touch #bars { top: calc(96px + env(safe-area-inset-top)); width: 58vw; }
+  body.touch #toasts { top: calc(166px + env(safe-area-inset-top)); }
+  body.touch .toast { max-width: 70vw; }
+  body.touch #log { top: 34%; }
+  body.touch #hint { bottom: auto; top: calc(150px + env(safe-area-inset-top)); width: max-content; max-width: 66vw; text-align: center; }
+  body.touch #pressure-warn { top: 40%; }
+  #touch .t-fire { width: 88px; height: 88px; right: calc(20px + env(safe-area-inset-right)); bottom: calc(36px + env(safe-area-inset-bottom)); }
+  #touch .t-sprint { right: calc(122px + env(safe-area-inset-right)); bottom: calc(54px + env(safe-area-inset-bottom)); }
+  #touch .t-up { right: calc(36px + env(safe-area-inset-right)); bottom: calc(210px + env(safe-area-inset-bottom)); }
+  #touch .t-down { right: calc(36px + env(safe-area-inset-right)); bottom: calc(142px + env(safe-area-inset-bottom)); }
+  #touch .t-shop { bottom: auto; top: 46%; }
+  #touch .t-move { width: 50%; }
+  #touch .t-look { width: 50%; }
+  #touch .t-stick { left: 90px; top: calc(100% - 120px); }
 }
-@keyframes spin { 0%, 30% { transform: rotate(0) } 60%, 100% { transform: rotate(90deg) } }
 
 /* Short landscape screens (phones): compact the menus so nothing needs pinch-zoom */
 @media (max-height: 500px) {
