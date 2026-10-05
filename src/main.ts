@@ -3,6 +3,7 @@ import { Audio } from './audio';
 import { AIR, ARMOR, BOAT_POS, DEPTH_LOGS, ENDING_DEPTH, HARPOON, rollIndividual, SPECIES, Species } from './config';
 import { Cutscene } from './cutscene';
 import { Fish, FishManager, fleshMat } from './fish';
+import { decodeSave, encodeSave } from './savecode';
 import { BubbleTrail, buildFlechette, buildSpear, HarpoonGun } from './harpoon';
 import { isTouchDevice, TouchControls } from './touch';
 import { Vents } from './vents';
@@ -48,6 +49,11 @@ try {
     // v1 had six harpoon tiers; v2 inserted new ones in between. Keep the same gun.
     if (!loaded.harpoonV) save.harpoon = [0, 1, 3, 4, 6, 8][loaded.harpoon ?? 0] ?? 0;
     save.harpoonV = 2;
+    // Saves can arrive by pasted code now, so never trust a tier index blindly.
+    const tier = (v: unknown, n: number) => Math.max(0, Math.min(n - 1, Math.floor(Number(v)) || 0));
+    save.air = tier(save.air, AIR.length);
+    save.harpoon = tier(save.harpoon, HARPOON.length);
+    save.armor = tier(save.armor, ARMOR.length);
     hasSave = true;
   }
 } catch { /* storage unavailable: play without saving */ }
@@ -313,6 +319,7 @@ function catchFish(f: Fish) {
 
 // ---------- Input ----------
 addEventListener('keydown', (e) => {
+  if (e.target instanceof HTMLTextAreaElement) return; // typing a save code, not playing
   keys.add(e.code);
   if (e.code === 'KeyM') audio.muted = !audio.muted;
   if (e.code === 'KeyH' && mode === 'play') useBandage();
@@ -358,6 +365,76 @@ if (hasSave) {
   $('btn-start').textContent = 'Continue';
   $('btn-new').classList.remove('hidden');
 }
+// ---------- Save code (move progress between devices) ----------
+const codeOut = $<HTMLTextAreaElement>('code-out');
+const codeIn = $<HTMLTextAreaElement>('code-in');
+const codeMsg = $('code-msg');
+const say = (text: string, kind: 'ok' | 'err' | '' = '') => {
+  codeMsg.textContent = text;
+  codeMsg.className = `code-msg ${kind}`;
+};
+function openSaveCode() {
+  persist();
+  codeOut.value = encodeSave(save);
+  codeIn.value = '';
+  say('');
+  ui.pause.classList.add('hidden');
+  $('savecode').classList.remove('hidden');
+}
+$('btn-code-title').onclick = openSaveCode;
+$('btn-code-pause').onclick = openSaveCode;
+$('btn-code-back').onclick = () => {
+  $('savecode').classList.add('hidden');
+  if (mode === 'paused') ui.pause.classList.remove('hidden');
+};
+$('btn-code-copy').onclick = async () => {
+  try {
+    await navigator.clipboard.writeText(codeOut.value);
+  } catch {
+    codeOut.focus();
+    codeOut.select();
+    document.execCommand('copy');
+  }
+  say('Copied. Paste it into Morrow Lake on your other device.', 'ok');
+};
+$('btn-code-load').onclick = () => {
+  const r = decodeSave(codeIn.value);
+  if (!r.ok) return say(r.error, 'err');
+  try {
+    localStorage.setItem(SAVE_KEY, JSON.stringify(r.save));
+  } catch {
+    return say("This browser won't let the game save (private browsing?).", 'err');
+  }
+  say(`Loaded: $${Number(r.save.money) || 0}, ${Number(r.save.caught) || 0} fish caught. Restarting…`, 'ok');
+  setTimeout(() => location.reload(), 900);
+};
+
+// ---------- Keep the save safe: persistent storage + installable app ----------
+// Ask the browser not to evict our storage. Granted silently on most browsers once the
+// site is installed or used a lot; harmless if refused.
+navigator.storage?.persist?.().catch(() => {});
+const standalone = matchMedia('(display-mode: standalone)').matches || (navigator as Navigator & { standalone?: boolean }).standalone === true;
+let installPrompt: (Event & { prompt: () => Promise<void> }) | null = null;
+addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault(); // show our own button instead of the browser's mini-bar
+  installPrompt = e as typeof installPrompt;
+  $('btn-install').classList.remove('hidden');
+});
+$('btn-install').onclick = async () => {
+  if (!installPrompt) return;
+  await installPrompt.prompt().catch(() => {});
+  installPrompt = null;
+  $('btn-install').classList.add('hidden');
+};
+addEventListener('appinstalled', () => $('btn-install').classList.add('hidden'));
+// iPhone/iPad Safari has no install prompt, and evicts a plain site's storage after
+// ~7 days away; a home-screen app keeps it. So tell iOS players how to add it.
+const iOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+if (iOS && !standalone) $('ios-tip').classList.remove('hidden');
+if ('serviceWorker' in navigator && import.meta.env.PROD) {
+  addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
+}
+
 $('btn-resume').onclick = () => {
   ui.pause.classList.add('hidden');
   mode = 'play';

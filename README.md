@@ -18,6 +18,13 @@ WASD swim · mouse look · click fire · Space/C up/down · Shift sprint · E bo
 
 **Touch:** left-side floating stick to swim, drag the right side to look, hold FIRE, plus up/down/sprint/bandage/pause/SHOP buttons. Works in portrait and landscape. Add `?touch=1` to force touch controls on desktop.
 
+## Saves
+Progress saves in the browser (localStorage) on every sell, purchase, death and pause. Nothing is sent to a server, and there's no login.
+
+- **Save code:** Pause → *Save code* (or the button on the title screen) shows the whole save as a copyable code. Paste it on another device to carry progress over. Codes carry a checksum, so a partial paste is rejected.
+- **Persistent storage:** the game asks the browser (`navigator.storage.persist()`) not to evict its data.
+- **Installable app (PWA):** there's a manifest, icons and an offline service worker (`public/sw.js`). Android/desktop Chrome get an *Install app* button. iPhone Safari gets a tip to use *Add to Home Screen*, because iOS clears a normal site's storage after about 7 days without a visit but keeps a home-screen app's. On iOS the home-screen app has its own storage, so use a save code to move progress into it.
+
 ## Design
 | Depth | Zone | Fish |
 |---|---|---|
@@ -37,4 +44,4 @@ WASD swim · mouse look · click fire · Space/C up/down · Shift sprint · E bo
 - Balance lives in `src/config.ts`.
 
 ## QA
-`npm run dev`, then `node scripts/qa.mjs` (zones + shop + ending), `node scripts/fishqa.mjs` (species close-ups), `node scripts/cutqa.mjs` (deterministic cutscene stills). Debug hooks are on `window.__game`.
+`npm run dev`, then `node scripts/qa.mjs` (zones + shop + ending), `node scripts/fishqa.mjs` (species close-ups), `node scripts/cutqa.mjs` (deterministic cutscene stills), `node scripts/mobileqa.mjs` (touch; `QA_PORTRAIT=1` for portrait), `node scripts/saveqa.mjs` (save codes, offline, install; run against `npx vite preview --port 4173`). `node scripts/icons.mjs` regenerates the app icons. Debug hooks are on `window.__game`.
