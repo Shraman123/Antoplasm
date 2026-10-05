@@ -232,6 +232,24 @@ export class Audio {
     vib.stop(t + 6.2);
   }
 
+  /** Attack warnings: each hunter has its own sound so you learn to react to it. */
+  cue(kind: 'dart' | 'charge' | 'lunge' | 'shriek' | 'stalk', vol = 1) {
+    if (kind === 'dart') {
+      this.noiseHit(0.35, 0.5 * vol, 3000, 'bandpass', 500);
+    } else if (kind === 'charge') {
+      this.tone(48, 0.9, 0.55 * vol, 'sawtooth', this.reverb, 95, 0.3);
+      this.noiseHit(0.9, 0.3 * vol, 200, 'lowpass', 900);
+    } else if (kind === 'lunge') {
+      this.tone(160, 0.3, 0.5 * vol, 'square', undefined, 40);
+      this.noiseHit(0.3, 0.6 * vol, 1800, 'lowpass', 200);
+    } else if (kind === 'shriek') {
+      this.tone(900, 0.6, 0.18 * vol, 'sawtooth', this.reverb, 1400, 0.05);
+      this.tone(947, 0.6, 0.14 * vol, 'sawtooth', this.reverb, 1330, 0.05);
+    } else {
+      this.noiseHit(1.4, 0.25 * vol, 700, 'bandpass', 1500);
+    }
+  }
+
   rumble(dur: number, vol: number) {
     this.noiseHit(dur, vol, 120, 'lowpass', 40);
   }

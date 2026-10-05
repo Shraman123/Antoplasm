@@ -167,6 +167,11 @@ const fishMgr = new FishManager(scene, {
     const dmg = f.sp.damage * (1 - tierA().reduction);
     hurt(dmg);
   },
+  cue(f, kind) {
+    if (mode !== 'play') return;
+    // Louder the closer it is, so you can tell which one is coming.
+    audio.cue(kind, Math.max(0.25, 1 - f.root.position.distanceTo(camera.position) / 40));
+  },
 });
 
 function hurt(dmg: number) {
@@ -657,6 +662,7 @@ function triggerEnding() {
 
 // ---------- Loop ----------
 const clock = new THREE.Clock();
+const lookDir = new THREE.Vector3();
 let time = 0;
 let lastDepthShown = -1;
 
@@ -804,7 +810,7 @@ function frame() {
     }
   }
   const playing = mode === 'play';
-  fishMgr.update(playing ? dt : mode === 'cutscene' ? dt : 0, time, camera.position, mode !== 'play');
+  fishMgr.update(playing ? dt : mode === 'cutscene' ? dt : 0, time, camera.position, mode !== 'play', camera.getWorldDirection(lookDir));
   if (!manualCut) cutscene.update(dt);
   if (mode !== 'cutscene' && mode !== 'ending') world.update(dt, time, camera.position);
   fleshMat.emissiveIntensity = 0.45 + Math.sin(time * 2.1) * 0.25;
@@ -890,6 +896,9 @@ document.addEventListener('visibilitychange', () => {
     return f;
   },
   clearFish() { fishMgr.clear(); },
+  set spawning(v: boolean) { fishMgr.spawning = v; },
+  get fishes() { return fishMgr.fish.map((f) => ({ id: f.sp.id, state: f.state, dist: f.root.position.distanceTo(camera.position), hp: f.hp })); },
+  move(dx: number, dy: number, dz: number) { camera.position.x += dx; camera.position.y += dy; camera.position.z += dz; },
   setAir(a: number) { air = a; },
   setHp(h: number) { hp = h; },
   get pos() { return camera.position; },
