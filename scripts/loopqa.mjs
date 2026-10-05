@@ -21,7 +21,7 @@ await page.click('#btn-sell');
 console.log('money after sell', await page.evaluate(() => window.__game.save.money));
 await page.click('#btn-close'); await page.evaluate(() => { window.__game.setSave({ money: 100 }); window.__game.shop(); });
 await page.click('#btn-sell', { force: true }).catch(() => {});
-await page.evaluate(() => document.querySelector('#upgrades button').click());
+await page.evaluate(() => document.querySelector('#upgrades .upg:nth-child(2) button').click());
 console.log('air tier after buy', await page.evaluate(() => [window.__game.save.air, window.__game.save.money]));
 await page.click('#btn-close');
 await page.evaluate(() => { window.__game.give('trout'); window.__game.teleport(200, 0, -100); });

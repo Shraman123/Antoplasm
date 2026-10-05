@@ -4,6 +4,7 @@ import { AIR, ARMOR, BOAT_POS, DEPTH_LOGS, ENDING_DEPTH, HARPOON, rollIndividual
 import { Cutscene } from './cutscene';
 import { Fish, FishManager, fleshMat } from './fish';
 import { BubbleTrail, buildFlechette, buildSpear, HarpoonGun } from './harpoon';
+import { isTouchDevice, TouchControls } from './touch';
 import { Vents } from './vents';
 import { floorY, World, zoneName } from './world';
 
@@ -59,7 +60,11 @@ const wipe = () => {
 
 // ---------- Three ----------
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 1.75));
+const TOUCH = isTouchDevice();
+let touch: TouchControls | null = null;
+if (TOUCH) document.body.classList.add('touch');
+// Phones have dense screens but small GPUs: cap the render resolution harder.
+renderer.setPixelRatio(Math.min(devicePixelRatio, TOUCH ? 1.25 : 1.75));
 renderer.setSize(innerWidth, innerHeight);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.05;
@@ -317,12 +322,14 @@ addEventListener('mousemove', (e) => {
   pitch = Math.max(-1.5, Math.min(1.5, pitch - e.movementY * 0.0022));
 });
 addEventListener('mousedown', (e) => {
+  if (TOUCH) return;
   if (mode === 'play' && e.button === 0) {
     if (document.pointerLockElement !== canvas) lock();
     else fire();
   }
 });
 const lock = () => {
+  if (TOUCH) return; // touch uses drag-to-look, no pointer lock
   const r = canvas.requestPointerLock() as unknown;
   if (r instanceof Promise) r.catch(() => {});
 };
@@ -349,6 +356,7 @@ $('btn-resume').onclick = () => {
   lock();
 };
 $('btn-close').onclick = () => closeShop();
+$('btn-close-top').onclick = () => closeShop();
 $('btn-sell').onclick = () => sellAll();
 $('btn-respawn').onclick = () => {
   ui.dead.classList.add('hidden');
@@ -362,6 +370,16 @@ $('btn-again').onclick = () => {
 };
 
 function startGame() {
+  if (TOUCH) {
+    // Best effort: fullscreen hides browser chrome, landscape gives the controls room.
+    const el = document.documentElement as HTMLElement & { webkitRequestFullscreen?: () => void };
+    try {
+      const p = el.requestFullscreen ? el.requestFullscreen() : el.webkitRequestFullscreen?.();
+      Promise.resolve(p)
+        .then(() => (screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> }).lock?.('landscape'))
+        .catch(() => {});
+    } catch { /* not supported (e.g. iPhone Safari) */ }
+  }
   audio.start();
   audio.splash();
   ui.title.classList.add('hidden');
@@ -446,7 +464,7 @@ function renderShop() {
   band.className = 'upg';
   band.innerHTML = `
     <div class="row"><span class="name">Bandages</span><span class="stat">You have ${save.bandages}</span></div>
-    <div class="stat">Heals ${BANDAGE_HEAL}% health. Press <kbd>H</kbd> underwater to use one.</div>
+    <div class="stat">Heals ${BANDAGE_HEAL}% health. ${TOUCH ? 'Tap ✚' : 'Press <kbd>H</kbd>'} underwater to use one.</div>
     <div class="row"><span class="stat">$${BANDAGE_COST} each</span><span><button data-n="1" ${save.money < BANDAGE_COST ? 'disabled' : ''}>Buy 1</button> <button data-n="5" ${save.money < BANDAGE_COST * 5 ? 'disabled' : ''}>Buy 5 · $${BANDAGE_COST * 5}</button></span></div>`;
   band.querySelectorAll('button').forEach((b) => {
     b.onclick = () => {
@@ -569,7 +587,10 @@ function updatePlayer(dt: number) {
     .addScaledVector(fwd, k('KeyW') - k('KeyS'))
     .addScaledVector(right, k('KeyD') - k('KeyA'))
     .add(new THREE.Vector3(0, k('Space') - k('KeyC') - k('ControlLeft'), 0));
-  if (acc.lengthSq() > 0) acc.normalize().multiplyScalar(sprint ? 50 : 32);
+  if (touch) acc.addScaledVector(fwd, touch.move.y).addScaledVector(right, touch.move.x);
+  // Analog: a half-pushed stick swims at half speed; keys are always full speed.
+  const mag = Math.min(1, acc.length());
+  if (mag > 0) acc.normalize().multiplyScalar((sprint ? 50 : 32) * mag);
   const above = pos.y > -0.4;
   vel.addScaledVector(acc, dt);
   vel.multiplyScalar(Math.exp(-2.3 * dt));
@@ -644,9 +665,13 @@ function updateHud(dt: number) {
   ui.bandages.textContent = `Bandages: ${save.bandages}${save.bandages && hp < 100 ? ' · H to use' : ''}`;
   const vent = vents.active;
   const ventHint = vent ? (vents.reserveOf(vent) > 0.02 ? `Breathing vent gas — reserve ${Math.round(vents.reserveOf(vent) * 100)}%` : 'Vent spent — it needs time to recover') : '';
-  const hint = nearBoat() ? "Press E — Teodor's boat (sell & upgrade)" : ventHint ? ventHint : air < 0.25 && depth > 2 ? 'Air low — surface!' : '';
+  const hint = nearBoat() ? (TOUCH ? "Tap SHOP — Teodor's boat (sell & upgrade)" : "Press E — Teodor's boat (sell & upgrade)") : ventHint ? ventHint : air < 0.25 && depth > 2 ? 'Air low — surface!' : '';
   ui.hint.textContent = hint;
   ui.hint.classList.toggle('show', !!hint);
+  if (touch) {
+    touch.setShopAvailable(nearBoat());
+    touch.setBandages(save.bandages);
+  }
   ui.vignette.style.setProperty('--v', String(0.25 + Math.min(1, depth / 550) * 0.7 + (air < 0.25 ? 0.2 : 0)));
   ui.grain.style.opacity = String(Math.max(0, (depth - 250) / 350) * 0.35);
   damageFlash = Math.max(0, damageFlash - dt * 1.6);
@@ -669,6 +694,16 @@ function frame() {
   time += dt;
   syncHarpoonLook();
   ventAir = mode === 'cutscene' || mode === 'ending' ? 0 : vents.update(dt, time, mode === 'play' ? camera.position : new THREE.Vector3(0, 1e4, 0));
+  document.body.classList.toggle('on-title', mode === 'title');
+  if (touch) {
+    touch.setVisible(mode === 'play');
+    if (mode === 'play') {
+      const l = touch.consumeLook();
+      yaw += l.yaw;
+      pitch = Math.max(-1.5, Math.min(1.5, pitch + l.pitch));
+      if (touch.fireHeld) fire(); // hold to keep firing as fast as the reload allows
+    }
+  }
   if (mode === 'play') {
     save.playTime += dt;
     updatePlayer(dt);
@@ -712,6 +747,30 @@ function frame() {
 }
 requestAnimationFrame(frame);
 
+// ---------- Touch ----------
+function pauseGame() {
+  if (mode !== 'play') return;
+  mode = 'paused';
+  ui.pause.classList.remove('hidden');
+}
+touch = TOUCH
+  ? new TouchControls(keys, {
+      onBandage: () => mode === 'play' && useBandage(),
+      onShop: () => mode === 'play' && nearBoat() && openShop(),
+      onPause: pauseGame,
+    })
+  : null;
+if (TOUCH) {
+  gun.root.position.set(0.15, -0.2, -0.42);
+  gun.root.scale.setScalar(0.4);
+  $('controls-desktop').classList.add('hidden');
+  $('controls-touch').classList.remove('hidden');
+}
+// Phones: going to the background pauses instead of drowning you.
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) pauseGame();
+});
+
 // QA / debug hooks.
 (window as any).__game = {
   get mode() { return mode; },
@@ -747,6 +806,7 @@ requestAnimationFrame(frame);
   setAir(a: number) { air = a; },
   setHp(h: number) { hp = h; },
   get pos() { return camera.position; },
+  get view() { return { yaw, pitch }; },
   get dock() { return world.dock; },
   place(x: number, y: number, z: number, p = 0, yw = 0) { vel.set(0, 0, 0); camera.position.set(x, y, z); pitch = p; yaw = yw; },
   vents,

@@ -116,3 +116,81 @@ button.ghost { background: transparent; color: inherit; border: 1px solid rgba(2
   #top-left { left: 16px; } #top-right { right: 16px; }
   #depth b { font-size: 34px; }
 }
+
+/* ---------- Touch controls ---------- */
+html, body { touch-action: none; overscroll-behavior: none; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
+#touch { position: fixed; inset: 0; z-index: 4; pointer-events: none; }
+#touch .t-zone { position: absolute; top: 0; bottom: 0; pointer-events: auto; touch-action: none; }
+#touch .t-move { left: 0; width: 42%; }
+#touch .t-look { right: 0; width: 58%; }
+#touch .t-stick { position: absolute; width: 112px; height: 112px; margin: -56px 0 0 -56px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.35); background: rgba(0,0,0,0.18); opacity: 0; transition: opacity 0.15s; left: 120px; top: calc(100% - 130px); }
+#touch .t-stick.active { opacity: 1; }
+#touch .t-knob { position: absolute; left: 50%; top: 50%; width: 50px; height: 50px; border-radius: 50%; background: rgba(255,255,255,0.55); transform: translate(-50%, -50%); }
+#touch .t-btn { position: absolute; pointer-events: auto; touch-action: none; border-radius: 50%; padding: 0; background: rgba(10,20,26,0.62); color: #fff; border: 2px solid rgba(255,255,255,0.35); font-weight: 600; font-size: 18px; box-shadow: none; display: grid; place-items: center; }
+#touch .t-btn:hover { transform: none; filter: none; }
+#touch .t-btn.down { background: rgba(255,211,90,0.55); border-color: #ffd35a; }
+#touch .t-fire { width: 92px; height: 92px; right: calc(26px + env(safe-area-inset-right)); bottom: calc(30px + env(safe-area-inset-bottom)); font-size: 16px; letter-spacing: 0.08em; background: rgba(180,40,40,0.45); border-color: rgba(255,140,120,0.7); }
+#touch .t-up { width: 56px; height: 56px; right: calc(134px + env(safe-area-inset-right)); bottom: calc(96px + env(safe-area-inset-bottom)); }
+#touch .t-down { width: 56px; height: 56px; right: calc(134px + env(safe-area-inset-right)); bottom: calc(30px + env(safe-area-inset-bottom)); }
+#touch .t-sprint { width: 52px; height: 52px; right: calc(46px + env(safe-area-inset-right)); bottom: calc(136px + env(safe-area-inset-bottom)); font-size: 22px; }
+#touch .t-bandage { width: 44px; height: 44px; right: calc(16px + env(safe-area-inset-right)); top: calc(128px + env(safe-area-inset-top)); color: #ff8a8a; font-size: 22px; }
+#touch .t-bandage::after { content: attr(data-count); position: absolute; top: -6px; right: -6px; min-width: 20px; height: 20px; border-radius: 10px; background: #d84a4a; color: #fff; font-size: 11px; display: grid; place-items: center; padding: 0 4px; }
+#touch .t-bandage.empty { opacity: 0.4; }
+#touch .t-pause { width: 40px; height: 40px; right: calc(16px + env(safe-area-inset-right)); top: calc(78px + env(safe-area-inset-top)); font-size: 12px; border-radius: 10px; }
+#touch .t-shop { width: auto; height: 46px; padding: 0 22px; border-radius: 23px; left: 50%; transform: translateX(-50%); bottom: calc(18px + env(safe-area-inset-bottom)); background: #f7c35f; color: #2a2014; border: none; font-size: 15px; }
+#touch .t-shop:hover { transform: translateX(-50%); }
+
+/* HUD rearranged so thumbs don't cover it */
+body.touch #bars { left: 50%; transform: translateX(-50%); bottom: auto; top: calc(10px + env(safe-area-inset-top)); width: min(240px, 40vw); gap: 5px; }
+body.touch .bar { grid-template-columns: 46px 1fr; font-size: 10px; }
+body.touch #top-left { left: calc(14px + env(safe-area-inset-left)); top: calc(8px + env(safe-area-inset-top)); }
+body.touch #top-right { right: calc(14px + env(safe-area-inset-right)); top: calc(8px + env(safe-area-inset-top)); }
+body.touch #depth b { font-size: 30px; }
+body.touch #money { font-size: 22px; }
+body.touch #toasts { bottom: auto; top: calc(96px + env(safe-area-inset-top)); right: auto; left: calc(14px + env(safe-area-inset-left)); align-items: flex-start; }
+body.touch .toast { font-size: 12px; padding: 6px 10px; max-width: 260px; }
+body.touch #log { top: 22%; font-size: 15px; }
+body.touch #hint { bottom: calc(76px + env(safe-area-inset-bottom)); font-size: 13px; }
+body.touch #caption { font-size: 16px; }
+body.touch #pressure-warn { top: 30%; font-size: 14px; }
+
+/* Rotate prompt: only on touch, only in portrait, only while a game screen is up */
+#rotate { display: none; }
+@media (orientation: portrait) {
+  body.touch #rotate { position: fixed; inset: 0; z-index: 30; background: rgba(4,10,14,0.94); color: #eef6f8; display: grid; place-content: center; text-align: center; gap: 10px; font-size: 16px; padding: 24px; }
+  body.touch #rotate div { font-size: 54px; animation: spin 2.4s ease-in-out infinite; }
+  body.touch.on-title #rotate { display: none; }
+}
+@keyframes spin { 0%, 30% { transform: rotate(0) } 60%, 100% { transform: rotate(90deg) } }
+
+/* Short landscape screens (phones): compact the menus so nothing needs pinch-zoom */
+@media (max-height: 500px) {
+  .screen { padding: 8px; }
+  .title-card .sun { width: 48px; height: 48px; margin-bottom: 8px; }
+  .title-card h1 { font-size: 40px; }
+  .title-card .tag { font-size: 16px; margin: 0 0 8px; }
+  .title-card .blurb { font-size: 13px; margin-bottom: 12px; }
+  .title-card button { font-size: 17px; padding: 10px 18px; }
+  .controls { margin-top: 12px; font-size: 12px; gap: 4px 12px; }
+  .panel { padding: 16px; gap: 10px; }
+  .shop-panel { max-height: 96vh; }
+  .shop-cols { grid-template-columns: 1fr 1.3fr 1.1fr; gap: 12px; }
+  .shop-cols ul { max-height: 46vh; font-size: 12px; }
+  .upg { padding: 8px; gap: 4px; }
+  .upg button { padding: 7px 10px; }
+  #shop-money { font-size: 20px; }
+  .teodor { font-size: 13px; }
+  .ending-card { gap: 10px; }
+  .ending-card h1 { font-size: 40px; }
+}
+@media (max-width: 760px) and (orientation: portrait) {
+  .shop-cols ul { max-height: none; }
+}
+button { min-height: 40px; }
+
+/* Menus must scroll on phones even though the game surface blocks gestures. */
+.screen, .panel, .shop-panel, .shop-cols ul { touch-action: pan-y; }
+.shop-panel { -webkit-overflow-scrolling: touch; }
+.shop-head { position: sticky; top: -28px; z-index: 2; background: rgba(8,14,18,0.96); padding: 4px 0; display: flex; align-items: center; gap: 14px; }
+#btn-close-top { margin-left: auto; padding: 6px 14px; min-height: 36px; font-size: 14px; }
+@media (max-height: 500px) { .shop-head { top: -16px; } }
