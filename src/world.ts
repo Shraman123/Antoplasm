@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { buildBoat, buildDock, BOAT_HALF_LENGTH, BOAT_HALF_WIDTH, DOCK_HALF_WIDTH, DOCK_POST_OFFSET, DOCK_POST_RADIUS, DOCK_POST_SPACING, DOCK_TOP } from './boat';
 import { BOAT_POS, LAKE_RADIUS, MAX_DEPTH } from './config';
+import { addCaustics, buildBeam, buildGodRays, buildSky, causticUniforms, waterMaterial } from './fx';
 
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
 const smooth = (a: number, b: number, v: number) => {
@@ -80,6 +81,9 @@ export class World {
   flashlight: THREE.SpotLight;
   terrain: THREE.Mesh;
   water: THREE.Mesh;
+  sky: THREE.Mesh;
+  rays: THREE.Mesh;
+  beam: THREE.Mesh;
   lakeGroup = new THREE.Group();
   growthMat: THREE.MeshStandardMaterial;
   private kelpUniform = { value: 0 };
@@ -107,11 +111,17 @@ export class World {
     this.flashlight.target.position.set(0, 0, -1);
     camera.add(this.flashlight);
     camera.add(this.flashlight.target);
+    this.beam = buildBeam();
+    camera.add(this.beam);
 
     this.terrain = this.buildTerrain();
     this.lakeGroup.add(this.terrain);
     this.water = this.buildWater();
     scene.add(this.water);
+    this.sky = buildSky();
+    scene.add(this.sky);
+    this.rays = buildGodRays();
+    scene.add(this.rays);
 
     this.growthMat = new THREE.MeshStandardMaterial({
       color: 0x7a0f1c,
@@ -163,22 +173,14 @@ export class World {
     geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
     geo.computeVertexNormals();
     const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, flatShading: true });
+    addCaustics(mat, { sand: true });
     return new THREE.Mesh(geo, mat);
   }
 
   private buildWater() {
     const geo = new THREE.PlaneGeometry(900, 900, 1, 1);
     geo.rotateX(-Math.PI / 2);
-    const mat = new THREE.MeshStandardMaterial({
-      color: 0x7cc3d6,
-      transparent: true,
-      opacity: 0.55,
-      side: THREE.DoubleSide,
-      roughness: 0.15,
-      metalness: 0.1,
-      depthWrite: false,
-    });
-    return new THREE.Mesh(geo, mat);
+    return new THREE.Mesh(geo, waterMaterial());
   }
 
   private onFloor(r: () => number, minD: number, maxD: number, tries = 30): THREE.Vector3 | null {
@@ -216,6 +218,7 @@ export class World {
          transformed.z += cos(uTime * 0.7 + ph) * h * h * 0.8;`,
       );
     };
+    addCaustics(kelpMat);
     const kelpCount = 900;
     const kelp = new THREE.InstancedMesh(kelpGeo, kelpMat, kelpCount);
     const kc = new THREE.Color();
@@ -240,6 +243,7 @@ export class World {
     // Rocks
     const rockGeo = new THREE.DodecahedronGeometry(1, 0);
     const rockMat = new THREE.MeshStandardMaterial({ color: 0x6d6a60, roughness: 1, flatShading: true });
+    addCaustics(rockMat);
     const rocks = new THREE.InstancedMesh(rockGeo, rockMat, 700);
     for (let i = 0; i < 700; i++) {
       const p = this.onFloor(r, 0, 650)!;
@@ -360,11 +364,16 @@ export class World {
     const above = cam.y > 0.05;
 
     // From above the lake reads as solid water; from below the surface stays translucent.
-    const wm = this.water.material as THREE.MeshStandardMaterial;
-    wm.opacity = above ? 1 : 0.55;
-    wm.transparent = !above;
+    const wm = this.water.material as THREE.ShaderMaterial;
     wm.depthWrite = above;
-    wm.color.set(above ? 0x2c7590 : 0x7cc3d6);
+    wm.uniforms.uTime.value = t;
+    this.sky.visible = above;
+    this.sky.position.copy(cam);
+    (this.sky.material as THREE.ShaderMaterial).uniforms.uTime.value = t;
+    causticUniforms.uCausT.value = t;
+    const rm = this.rays.material as THREE.ShaderMaterial;
+    rm.uniforms.uTime.value = t;
+    rm.uniforms.uCam.value.copy(cam);
     if (above) {
       this.fog.color.copy(this.skyColor);
       this.fog.density = 0.0022;
@@ -372,6 +381,9 @@ export class World {
       this.hemi.intensity = 1.6;
       this.sun.intensity = 1.8;
       this.flashlight.intensity = 0;
+      causticUniforms.uCausK.value = 0.8;
+      this.rays.visible = false;
+      this.beam.visible = false;
     } else {
       const z = sampleZones(depth);
       this.fog.color.copy(z.col);
@@ -380,6 +392,11 @@ export class World {
       this.hemi.intensity = 0.15 + 1.25 * z.sun;
       this.hemi.color.setHSL(0.53, 0.5, 0.75).lerp(new THREE.Color(0x802030), smooth(380, 620, depth) * 0.6);
       this.sun.intensity = 1.6 * z.sun;
+      wm.uniforms.uUnder.value.copy(z.col);
+      causticUniforms.uCausK.value = z.sun;
+      const rays = z.sun * (1 - smooth(12, 95, depth));
+      rm.uniforms.uStrength.value = rays;
+      this.rays.visible = rays > 0.01;
       // Flashlight takes over as the sun dies, and starts to misbehave in the Rot.
       let fl = 6 + 60 * smooth(30, 260, depth);
       if (depth > 380) {
@@ -388,6 +405,10 @@ export class World {
         if (this.flickerT < 0.3 && Math.random() < smooth(380, 600, depth) * 0.7) fl *= Math.random() * 0.3;
       }
       this.flashlight.intensity = fl;
+      // Visible beam only once it's dark enough for the lamp to matter; follows the flicker.
+      const bs = (fl / 66) * smooth(40, 200, depth);
+      (this.beam.material as THREE.ShaderMaterial).uniforms.uStrength.value = bs;
+      this.beam.visible = bs > 0.01;
     }
 
     this.growthMat.emissiveIntensity = 0.45 + 0.35 * Math.sin(t * 1.7) + 0.15 * Math.sin(t * 4.3);

@@ -357,6 +357,9 @@ export class Cutscene {
     this.switched = true;
     this.world.lakeGroup.visible = false;
     this.world.water.visible = false;
+    this.world.sky.visible = false;
+    this.world.rays.visible = false;
+    this.world.beam.visible = false;
     this.city.group.visible = true;
     this.whale.root.visible = true;
     this.whale.root.position.set(0, -900, -260);

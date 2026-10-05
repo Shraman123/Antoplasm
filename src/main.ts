@@ -4,6 +4,7 @@ import { AIR, ARMOR, BOAT_POS, DEPTH_LOGS, ENDING_DEPTH, HARPOON, rollIndividual
 import { Cutscene } from './cutscene';
 import { Fish, FishManager, fleshMat } from './fish';
 import { decodeSave, encodeSave } from './savecode';
+import { causticUniforms } from './fx';
 import { BubbleTrail, buildFlechette, buildSpear, HarpoonGun } from './harpoon';
 import { isTouchDevice, TouchControls } from './touch';
 import { Vents } from './vents';
@@ -873,6 +874,8 @@ document.addEventListener('visibilitychange', () => {
   ending: triggerEnding,
   stepCut(sec: number) { manualCut = true; for (let i = 0; i < sec * 30; i++) cutscene.update(1 / 30); },
   get calls() { return renderer.info.render.calls; },
+  get world() { return world; },
+  caustics: causticUniforms,
   shop: openShop,
   spawn(id: string, dist = 5, dx = 0, depthRoll?: number) {
     let sp = SPECIES.find((s) => s.id === id)!;
